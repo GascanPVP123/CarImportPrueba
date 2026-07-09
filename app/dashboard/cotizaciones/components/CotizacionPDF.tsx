@@ -1,5 +1,37 @@
-import React from "react";
-import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
+import React, { useMemo } from "react";
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  Image,
+} from "@react-pdf/renderer";
+
+// ---------------------------------------------------------------------------
+// Tipos
+// ---------------------------------------------------------------------------
+
+interface ItemCotizacion {
+  codigoSku: string;
+  nombre: string;
+  cantidad: number;
+  precioVenta: number;
+  unidadMedida?: string;
+}
+
+interface PDFProps {
+  cotizacionId: number;
+  clienteNombre: string;
+  clienteDocumento?: string;
+  horaEmision: string;
+  items: ItemCotizacion[];
+  totalNeto: number;
+}
+
+// ---------------------------------------------------------------------------
+// Estilos
+// ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   page: {
@@ -20,12 +52,11 @@ const styles = StyleSheet.create({
   brandSection: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
   },
   logo: {
     width: 45,
     height: 45,
-    objectFit: "contain",
+    marginRight: 10,
   },
   brandTextContainer: {
     flexDirection: "column",
@@ -55,15 +86,13 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginTop: 2,
   },
-  
-  // 📊 TABLA SUPERIOR CORREGIDA CON MEDIDAS FIJAS
+
   clientTable: {
     width: "100%",
     borderWidth: 1,
     borderColor: "#e2e8f0",
     borderRadius: 6,
     marginBottom: 15,
-    overflow: "hidden",
   },
   clientTableRow: {
     flexDirection: "row",
@@ -71,7 +100,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e2e8f0",
   },
   clientTableCellLabel: {
-    width: 110, // Ancho fijo en puntos de PDF, suficiente para "Cliente / Razón Social" sin cortarse
+    width: 110,
     backgroundColor: "#f8fafc",
     padding: 6,
     fontWeight: "bold",
@@ -80,14 +109,15 @@ const styles = StyleSheet.create({
     borderRightColor: "#e2e8f0",
   },
   clientTableCellValue: {
-    flex: 1, // Ocupa todo el espacio restante de la fila
+    flex: 1,
     padding: 6,
     color: "#1f2937",
   },
+  lastRow: {
+    borderBottomWidth: 0,
+  },
 
-  // 🛒 TABLA DE ITEMS
   table: {
-    width: "auto",
     marginBottom: 15,
   },
   tableHeaderRow: {
@@ -104,15 +134,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     alignItems: "center",
   },
-  
-  colSku: { width: "15%", paddingLeft: 6 },
-  colDesc: { width: "35%" },
-  colMedida: { width: "10%", textAlign: "center" },
-  colCant: { width: "8%", textAlign: "center" },
-  colPrecio: { width: "11%", textAlign: "right" },
-  colDescPorcentaje: { width: "9%", textAlign: "center" },
-  colTotal: { width: "12%", textAlign: "right", paddingRight: 6 },
-  
+  // Nueva distribución: 15% SKU | 40% Descripción | 12% Medida | 8% Cant | 12% P. Unit | 13% Importe
+  colSku: { width: "15%", paddingLeft: 6, fontSize: 8 },
+  colDesc: { width: "40%", fontSize: 9 },
+  colMedida: { width: "12%", textAlign: "center", fontSize: 9 },
+  colCant: { width: "8%", textAlign: "center", fontSize: 9 },
+  colPrecio: { width: "12%", textAlign: "right", fontSize: 9 },
+  colImporte: { width: "13%", textAlign: "right", paddingRight: 6, fontSize: 9 },
   headerText: {
     fontSize: 8,
     fontWeight: "bold",
@@ -120,7 +148,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 
-  // 💰 SECCIÓN INFERIOR FIJA (REEMPLAZADOS TODOS LOS DIVS POR VIEWS)
   fixedBottomSection: {
     position: "absolute",
     bottom: 50,
@@ -134,30 +161,21 @@ const styles = StyleSheet.create({
     width: "50%",
     fontSize: 8,
     color: "#64748b",
-    gap: 2,
   },
-  totalFinancialBox: {
-    width: "40%",
+  noteLine: {
+    marginBottom: 2,
+  },
+  noteTitle: {
+    fontWeight: "bold",
+    color: "#475569",
+    marginBottom: 4,
+  },
+  totalBox: {
+    width: "30%",
     borderWidth: 1,
     borderColor: "#e2e8f0",
     borderRadius: 6,
     backgroundColor: "#f8fafc",
-    overflow: "hidden",
-  },
-  financialRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  financialLabel: {
-    color: "#475569",
-  },
-  financialAmount: {
-    textAlign: "right",
-    color: "#1f2937",
   },
   totalRow: {
     flexDirection: "row",
@@ -189,138 +207,156 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
     paddingTop: 8,
-  }
+  },
 });
 
-interface PDFProps {
-  cotizacionId: number;
+// ---------------------------------------------------------------------------
+// Subcomponentes
+// ---------------------------------------------------------------------------
+
+const Header: React.FC<{ cotizacionId: number }> = ({ cotizacionId }) => (
+  <View style={styles.headerContainer}>
+    <View style={styles.brandSection}>
+      <Image src="/images/logo_empresa.jpg" style={styles.logo} />
+      <View style={styles.brandTextContainer}>
+        <Text style={styles.brandTitle}>CAR IMPORT RAMOS & HUAMAN S.A.C.</Text>
+        <Text style={styles.brandSubtitle}>
+          Venta de Autopartes y Repuestos de Importación
+        </Text>
+        <Text style={styles.brandSubtitle}>
+          RUC: 10737387572 | Av Gerardo Unger 4485, Independencia
+        </Text>
+      </View>
+    </View>
+    <View style={styles.docTitleContainer}>
+      <Text style={styles.docTitle}>COTIZACIÓN OFICIAL</Text>
+      <Text style={styles.docId}>Nro: #000{cotizacionId}</Text>
+    </View>
+  </View>
+);
+
+const ClientInfo: React.FC<{
   clienteNombre: string;
   clienteDocumento?: string;
   horaEmision: string;
-  items: Array<{
-    codigoSku: string;
-    nombre: string;
-    cantidad: number;
-    precioVenta: number;
-    unidadMedida?: string;
-    descuentoPorcentaje: number;
-  }>;
-  totalBruto: number;
-  totalDescuento: number;
-  totalNeto: number;
-}
+}> = ({ clienteNombre, clienteDocumento, horaEmision }) => (
+  <View style={styles.clientTable}>
+    <View style={styles.clientTableRow}>
+      <Text style={styles.clientTableCellLabel}>Cliente / Razón Social</Text>
+      <Text style={styles.clientTableCellValue}>{clienteNombre}</Text>
+    </View>
+    <View style={[styles.clientTableRow, styles.lastRow]}>
+      <Text style={styles.clientTableCellLabel}>RUC / DNI Cliente</Text>
+      <Text style={styles.clientTableCellValue}>
+        {clienteDocumento || "N/A"}
+      </Text>
+      <Text style={[styles.clientTableCellLabel, { borderLeftWidth: 1 }]}>
+        Fecha y Hora
+      </Text>
+      <Text style={styles.clientTableCellValue}>
+        {new Date().toLocaleDateString()} - {horaEmision || "18:00"}
+      </Text>
+    </View>
+  </View>
+);
 
-export default function CotizacionPDF({ cotizacionId, clienteNombre, clienteDocumento, horaEmision, items, totalBruto, totalDescuento, totalNeto }: PDFProps) {
-  const subtotalNeto = totalNeto / 1.18;
-  const igvNeto = totalNeto - subtotalNeto;
+const ItemsTable: React.FC<{ items: ItemCotizacion[] }> = ({ items }) => {
+  const rows = useMemo(
+    () =>
+      items.map((item) => ({
+        ...item,
+        importe: item.precioVenta * item.cantidad,
+      })),
+    [items]
+  );
 
   return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        
-        {/* Encabezado */}
-        <View style={styles.headerContainer}>
-          <View style={styles.brandSection}>
-            <Image src="/images/logo.png" style={styles.logo} />
-            <View style={styles.brandTextContainer}>
-              <Text style={styles.brandTitle}>CAR IMPORT RAMOS & HUAMAN S.A.C.</Text>
-              <Text style={styles.brandSubtitle}>Venta de Autopartes y Repuestos de Importación</Text>
-              <Text style={styles.brandSubtitle}>RUC: 20123456789 | Ate, Lima, Perú</Text>
-            </View>
-          </View>
-          <View style={styles.docTitleContainer}>
-            <Text style={styles.docTitle}>COTIZACIÓN OFICIAL</Text>
-            <Text style={styles.docId}>Nro: #000{cotizacionId}</Text>
-          </View>
+    <View style={styles.table}>
+      <View style={styles.tableHeaderRow}>
+        <Text style={[styles.colSku, styles.headerText]}>Código SKU</Text>
+        <Text style={[styles.colDesc, styles.headerText]}>Descripción</Text>
+        <Text style={[styles.colMedida, styles.headerText]}>Medida</Text>
+        <Text style={[styles.colCant, styles.headerText]}>Cant.</Text>
+        <Text style={[styles.colPrecio, styles.headerText]}>P. Unit</Text>
+        <Text style={[styles.colImporte, styles.headerText]}>Importe</Text>
+      </View>
+
+      {rows.map((row, index) => (
+        <View key={index} style={styles.tableRow}>
+          <Text style={styles.colSku}>{row.codigoSku || "N/A"}</Text>
+          <Text style={styles.colDesc}>{row.nombre}</Text>
+          <Text style={styles.colMedida}>{row.unidadMedida || "unid"}</Text>
+          <Text style={styles.colCant}>{row.cantidad}</Text>
+          <Text style={styles.colPrecio}>
+            S/. {row.precioVenta.toFixed(2)}
+          </Text>
+          <Text style={styles.colImporte}>
+            S/. {row.importe.toFixed(2)}
+          </Text>
         </View>
-
-        {/* 📊 TABLA SUPERIOR ACTUALIZADA */}
-        <View style={styles.clientTable}>
-          <View style={styles.clientTableRow}>
-            <Text style={styles.clientTableCellLabel}>Cliente / Razón Social</Text>
-            <Text style={styles.clientTableCellValue}>{clienteNombre}</Text>
-          </View>
-          <View style={[styles.clientTableRow, { borderBottomWidth: 0 }]}>
-            <Text style={styles.clientTableCellLabel}>RUC / DNI Cliente</Text>
-            <Text style={styles.clientTableCellValue}>{clienteDocumento || "N/A"}</Text>
-            <Text style={[styles.clientTableCellLabel, { borderLeftWidth: 1 }]}>Fecha y Hora</Text>
-            <Text style={styles.clientTableCellValue}>
-              {new Date().toLocaleDateString()} - {horaEmision || "18:00"}
-            </Text>
-          </View>
-        </View>
-
-        {/* 🛒 TABLA DE ITEMS */}
-        <View style={styles.table}>
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.colSku, styles.headerText]}>Código SKU</Text>
-            <Text style={[styles.colDesc, styles.headerText]}>Descripción del Repuesto</Text>
-            <Text style={[styles.colMedida, styles.headerText]}>Medida</Text>
-            <Text style={[styles.colCant, styles.headerText]}>Cant.</Text>
-            <Text style={[styles.colPrecio, styles.headerText]}>P. Unit</Text>
-            <Text style={[styles.colDescPorcentaje, styles.headerText]}>Desc.</Text>
-            <Text style={[styles.colTotal, styles.headerText]}>Subtotal</Text>
-          </View>
-
-          {items.map((item, index) => {
-            const subtotalItem = item.precioVenta * item.cantidad;
-            const ahorroItem = subtotalItem * (item.descuentoPorcentaje / 100);
-            const totalItemFinal = subtotalItem - ahorroItem;
-
-            return (
-              <View key={index} style={styles.tableRow}>
-                <Text style={[styles.colSku, { fontSize: 8 }]}>{item.codigoSku || "N/A"}</Text>
-                <Text style={styles.colDesc}>{item.nombre}</Text>
-                <Text style={styles.colMedida}>{item.unidadMedida || "unid"}</Text>
-                <Text style={styles.colCant}>{item.cantidad}</Text>
-                <Text style={styles.colPrecio}>S/. {item.precioVenta.toFixed(2)}</Text>
-                <Text style={styles.colDescPorcentaje}>{item.descuentoPorcentaje || 0}%</Text>
-                <Text style={styles.colTotal}>S/. {totalItemFinal.toFixed(2)}</Text>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* 💰 SECCIÓN INFERIOR COMPLETA (CORREGIDA AL 100% PARA LA LIBRERÍA) */}
-        <View style={styles.fixedBottomSection} fixed>
-          <View style={styles.notesBox}>
-            <Text style={{ fontWeight: "bold", color: "#475569", marginBottom: 2 }}>Términos y Condiciones:</Text>
-            <Text>1. Los precios ya incluyen el descuento por mayor e IGV (18%).</Text>
-            <Text>2. Tipo de Moneda: Soles (S/.).</Text>
-            <Text>3. Oferta válida por 7 días calendario.</Text>
-            <Text>4. Despacho inmediato tras verificar el abono en cuenta.</Text>
-          </View>
-          
-          <View style={styles.totalFinancialBox}>
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Total Bruto:</Text>
-              <Text style={styles.financialAmount}>S/. {totalBruto ? totalBruto.toFixed(2) : "0.00"}</Text>
-            </View>
-            <View style={styles.financialRow}>
-              <Text style={[styles.financialLabel, { color: "#dc2626" }]}>Descuento:</Text>
-              <Text style={[styles.financialAmount, { color: "#dc2626" }]}>
-                - S/. {totalDescuento ? totalDescuento.toFixed(2) : "0.00"}
-              </Text>
-            </View>
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Subtotal Neto:</Text>
-              <Text style={styles.financialAmount}>S/. {subtotalNeto ? subtotalNeto.toFixed(2) : "0.00"}</Text>
-            </View>
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>IGV (18%):</Text>
-              <Text style={styles.financialAmount}>S/. {igvNeto ? igvNeto.toFixed(2) : "0.00"}</Text>
-            </View>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total Neto:</Text>
-              <Text style={styles.totalAmount}>S/. {totalNeto ? totalNeto.toFixed(2) : "0.00"}</Text>
-            </View>
-          </View>
-        </View>
-
-        <Text style={styles.footer} fixed>
-          CarImport System - Reporte Oficial de Cotización Corporativa.
-        </Text>
-      </Page>
-    </Document>
+      ))}
+    </View>
   );
-}
+};
+
+const TotalSection: React.FC<{ total: number }> = ({ total }) => (
+  <View style={styles.fixedBottomSection} fixed>
+    <View style={styles.notesBox}>
+      <Text style={styles.noteTitle}>Términos y Condiciones:</Text>
+      <Text style={styles.noteLine}>
+        1. Los precios ya incluyen todos los descuentos aplicables.
+      </Text>
+      <Text style={styles.noteLine}>2. Tipo de Moneda: Soles (S/.).</Text>
+      <Text style={styles.noteLine}>
+        3. Oferta válida por 7 días calendario.
+      </Text>
+      <Text style={styles.noteLine}>
+        4. Despacho inmediato tras verificar el abono en cuenta.
+      </Text>
+    </View>
+
+    <View style={styles.totalBox}>
+      <View style={styles.totalRow}>
+        <Text style={styles.totalLabel}>Total</Text>
+        <Text style={styles.totalAmount}>
+          S/. {total?.toFixed(2) ?? "0.00"}
+        </Text>
+      </View>
+    </View>
+  </View>
+);
+
+const Footer: React.FC = () => (
+  <Text style={styles.footer} fixed>
+    CarImport System - Reporte Oficial de Cotización 
+  </Text>
+);
+
+// ---------------------------------------------------------------------------
+// Componente principal
+// ---------------------------------------------------------------------------
+
+const CotizacionPDF: React.FC<PDFProps> = ({
+  cotizacionId,
+  clienteNombre,
+  clienteDocumento,
+  horaEmision,
+  items,
+  totalNeto,
+}) => (
+  <Document>
+    <Page size="A4" style={styles.page}>
+      <Header cotizacionId={cotizacionId} />
+      <ClientInfo
+        clienteNombre={clienteNombre}
+        clienteDocumento={clienteDocumento}
+        horaEmision={horaEmision}
+      />
+      <ItemsTable items={items} />
+      <TotalSection total={totalNeto} />
+      <Footer />
+    </Page>
+  </Document>
+);
+
+export default CotizacionPDF;

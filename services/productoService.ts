@@ -1,17 +1,24 @@
 const API_URL = "http://127.0.0.1:8080/api/productos";
 
+
+interface Importadora {
+  id: number;
+  ruc: string;
+  razonSocial: string;
+  telefono?: string;
+}
 export interface Producto {
   id?: number;
   codigoSku: string;
   nombre: string;
-  imagenUrl: string | null;
-  descripcion: string;
+  descripcion?: string;
   precioCompra: number;
   precioVenta: number;
   stock: number;
-  stockMinimo: number;
-  proveedor: any | null;
-  createdAt?: string;
+  stockMinimo: number;        // ✅ Agregado
+  imagenUrl?: string; 
+  unidadMedida?: string;
+  importadora?: Importadora;
 }
 
 export const productoService = {

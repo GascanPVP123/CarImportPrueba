@@ -20,29 +20,45 @@ export default function InventarioProductosPage() {
     precioVenta: 0,
     stock: 0,
     stockMinimo: 10,
-    imagenUrl: ""
+    imagenUrl: "",
   });
 
   // ✏️ ESTADOS PARA EL MODAL DE EDICIÓN
   const [productoAEditar, setProductoAEditar] = useState<Producto | null>(null);
 
-  const cargarProductos = async () => {
+  // 🔄 EFECTO COMPLETO PARA LEER REGISTROS
+  useEffect(() => {
+    const cargarProductos = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await productoService.listar();
+        setProductos(data);
+      } catch (err) {
+        console.error(err);
+        setError("No se pudo conectar con el servidor de Spring Boot.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    cargarProductos();
+  }, []);
+
+  // Handler para recargar manualmente con el botón
+  const manejarRecargar = async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await productoService.listar();
       setProductos(data);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setError("No se pudo conectar con el servidor de Spring Boot.");
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    cargarProductos();
-  }, []);
 
   // Handler para guardar un nuevo producto
   const manejarCrearProducto = async (e: React.FormEvent) => {
@@ -53,8 +69,9 @@ export default function InventarioProductosPage() {
       setProductos([nuevoProd, ...productos]);
       setModalCrearAbierto(false);
       setFormCrear({ codigoSku: "", nombre: "", descripcion: "", precioCompra: 0, precioVenta: 0, stock: 0, stockMinimo: 10, imagenUrl: "" });
-    } catch (err: any) {
-      alert(err.message || "Error al guardar.");
+    } catch (err: unknown) {
+      const mensaje = err instanceof Error ? err.message : "Error al guardar el producto.";
+      alert(mensaje);
     }
   };
 
@@ -70,8 +87,9 @@ export default function InventarioProductosPage() {
       // Reemplazamos el producto viejo por el editado en el estado local de la tabla
       setProductos(productos.map((p) => (p.id === productoAEditar.id ? prodActualizado : p)));
       setProductoAEditar(null); // Cerramos el modal
-    } catch (err: any) {
-      alert(err.message || "Error al actualizar la data.");
+    } catch (err: unknown) {
+      const mensaje = err instanceof Error ? err.message : "Error al actualizar la data.";
+      alert(mensaje);
     }
   };
 
@@ -81,8 +99,9 @@ export default function InventarioProductosPage() {
       await productoService.eliminar(id);
       alert("Producto eliminado.");
       setProductos(productos.filter((p) => p.id !== id));
-    } catch (err: any) {
-      alert("Error: Producto enlazado a cotizaciones.");
+    } catch (err: unknown) {
+      const mensaje = err instanceof Error ? err.message : "Error: Producto enlazado a cotizaciones o error de servidor.";
+      alert(mensaje);
     }
   };
 
@@ -101,7 +120,7 @@ export default function InventarioProductosPage() {
         </div>
         
         <div className="flex items-center gap-2">
-          <button onClick={cargarProductos} className="p-2.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-600 transition shadow-sm">
+          <button onClick={manejarRecargar} className="p-2.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-600 transition shadow-sm">
             <RefreshCw className="h-4 w-4" />
           </button>
           <button onClick={() => setModalCrearAbierto(true)} className="flex items-center gap-2 bg-emerald-600 text-white font-semibold px-4 py-2.5 rounded-lg hover:bg-emerald-700 transition text-sm shadow-sm">
@@ -140,6 +159,7 @@ export default function InventarioProductosPage() {
                   <th className="px-6 py-4">Imagen</th>
                   <th className="px-6 py-4">SKU / Código</th>
                   <th className="px-6 py-4">Descripción del Repuesto</th>
+                  <th className="px-6 py-4">Importadora Proveedora</th>
                   <th className="px-6 py-4 text-right">P. Compra</th>
                   <th className="px-6 py-4 text-right">P. Venta</th>
                   <th className="px-6 py-4 text-center">Stock Real</th>
@@ -149,7 +169,7 @@ export default function InventarioProductosPage() {
               <tbody className="divide-y divide-slate-200 text-slate-700">
                 {productosFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400 italic">No se encontraron productos.</td>
+                    <td colSpan={8} className="px-6 py-12 text-center text-slate-400 italic">No se encontraron productos.</td>
                   </tr>
                 ) : (
                   productosFiltrados.map((prod) => {
@@ -170,6 +190,9 @@ export default function InventarioProductosPage() {
                           <div className="font-semibold text-slate-900 truncate">{prod.nombre}</div>
                           <div className="text-xs text-slate-400 truncate mt-0.5">{prod.descripcion}</div>
                         </td>
+                        <td className="px-6 py-4 font-medium text-slate-700">
+                          {prod.importadora ? prod.importadora.razonSocial : "Sin Asignar"}
+                        </td>
                         <td className="px-6 py-3 text-right font-medium text-slate-500">S/. {prod.precioCompra.toFixed(2)}</td>
                         <td className="px-6 py-3 text-right font-semibold text-slate-900">S/. {prod.precioVenta.toFixed(2)}</td>
                         <td className="px-6 py-3 text-center">
@@ -179,7 +202,6 @@ export default function InventarioProductosPage() {
                         </td>
                         <td className="px-6 py-3 text-center">
                           <div className="flex items-center justify-center gap-1">
-                            {/* 🔥 AL HACER CLIC: Se precarga la data en el estado de edición */}
                             <button onClick={() => setProductoAEditar({...prod})} className="p-2 text-slate-400 hover:text-blue-600 rounded-lg transition" title="Editar repuesto">
                               <Pencil className="h-4 w-4" />
                             </button>
