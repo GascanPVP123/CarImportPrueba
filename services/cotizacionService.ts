@@ -1,62 +1,92 @@
-const API_URL = "http://127.0.0.1:8080/api/cotizaciones";
+import { apiRequest } from "./api";
 
-export interface DetalleCotizacionInput {
-  cantidad: number;
-  producto: {
-    id: number;
-  };
-}
-
-export interface CotizacionInput {
-  clienteNombre: string;
-  clienteDocumento: string;
-  detalles: DetalleCotizacionInput[];
-}
-
-export interface DetalleCotizacionResponse {
-  id: number;
-  cantidad: number;
-  precioUnitario: number;
-  producto: {
-    id: number;
-    codigoSku: string;
-    nombre: string;
-    precioVenta: number;
-  };
+export interface CotizacionRequest {
+  clienteId: number;
+  fechaVencimiento: string;
+  condicionPago: string;
+  moneda: string;
+  observaciones?: string;
+  detalles: {
+    productoId: number;
+    cantidad: number;
+    unidad: string;
+    precioUnitario: number;
+    descuento: number;
+  }[];
 }
 
 export interface CotizacionResponse {
   id: number;
-  clienteNombre: string;
-  clienteDocumento: string;
-  fecha: string;
+  numero: string;
+  cliente: {
+    id: number;
+    nombre: string;
+    documento: string;
+  };
+  usuario: {
+    id: number;
+    username: string;
+  };
+  fechaEmision: string;
+  fechaVencimiento: string;
+  condicionPago: string;
+  moneda: string;
+  subtotal: number;
+  descuento: number;
+  igv: number;
   total: number;
-  detalles: DetalleCotizacionResponse[];
+  estado: string;
+  observaciones: string;
+  detalles: {
+    id: number;
+    producto: {
+      id: number;
+      codigoSku: string;
+      nombre: string;
+    };
+    codigo: string;
+    descripcion: string;
+    cantidad: number;
+    unidad: string;
+    precioUnitario: number;
+    descuento: number;
+    importe: number;
+  }[];
 }
 
 export const cotizacionService = {
-  // POST: Enviar la nueva cotización y descontar stock
-  guardar: async (cotizacion: CotizacionInput): Promise<CotizacionResponse> => {
-    const response = await fetch(API_URL, {
+  listar: () => apiRequest<CotizacionResponse[]>("/cotizaciones", { method: "GET" }),
+
+  obtener: (id: number) =>
+    apiRequest<CotizacionResponse>(`/cotizaciones/${id}`, { method: "GET" }),
+
+  guardar: (data: CotizacionRequest) =>
+    apiRequest<CotizacionResponse>("/cotizaciones", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(cotizacion),
-    });
+      body: data,
+    }),
 
-    if (!response.ok) {
-      const msgError = await response.text();
-      throw new Error(msgError || "Error al procesar la cotización. Revisa el stock.");
-    }
+  actualizar: (id: number, data: CotizacionRequest) =>
+    apiRequest<CotizacionResponse>(`/cotizaciones/${id}`, {
+      method: "PUT",
+      body: data,
+    }),
 
-    return response.json();
-  },
+  cambiarEstado: (id: number, estado: string) =>
+    apiRequest<CotizacionResponse>(`/cotizaciones/${id}/estado?estado=${estado}`, {
+      method: "PUT",
+    }),
 
-  // GET: Traer el historial completo si lo necesitas después
-  listar: async (): Promise<CotizacionResponse[]> => {
-    const response = await fetch(API_URL, { cache: "no-store" });
-    if (!response.ok) throw new Error("Error al obtener el historial");
-    return response.json();
-  },
+  duplicar: (id: number) =>
+    apiRequest<CotizacionResponse>(`/cotizaciones/${id}/duplicar`, {
+      method: "POST",
+    }),
+
+  convertirAPedido: (id: number) =>
+    apiRequest<{ pedidoId: number }>(`/cotizaciones/${id}/convertir`, {
+      method: "POST",
+    }),
+
+  eliminar: (id: number) =>
+    apiRequest<void>(`/cotizaciones/${id}`, { method: "DELETE" }),
 };
