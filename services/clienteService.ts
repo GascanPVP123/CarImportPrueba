@@ -28,4 +28,10 @@ export const clienteService = {
 
   eliminar: (id: number) =>
     apiRequest<void>(`/clientes/${id}`, { method: "DELETE" }),
+
+  crearRapido: (cliente: Omit<Cliente, "id">) =>
+  apiRequest<Cliente>("/clientes", {
+    method: "POST",
+    body: cliente,
+  }),
 };

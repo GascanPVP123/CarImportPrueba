@@ -229,17 +229,27 @@ export default function NuevaCotizacionPage() {
     }));
 
   const manejarEnviarCotizacion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!clienteSeleccionadoId || carrito.length === 0) {
-      alert("Seleccione un cliente y agregue al menos un producto.");
-      return;
-    }
-    setLoading(true);
-    const ahora = new Date();
-    const horaExactaStr = ahora.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  e.preventDefault();
+  if (!clienteNombre || carrito.length === 0) {
+    alert("Complete los datos del cliente y agregue al menos un producto.");
+    return;
+  }
+  setLoading(true);
+  const ahora = new Date();
+  const horaExactaStr = ahora.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
+  try {
+    // 1. Crear el cliente primero
+    const nuevoCliente = await clienteService.guardar({
+      nombre: clienteNombre,
+      documento: clienteDocumento || "S/D",
+      direccion: clienteDireccion || "S/D",
+      telefono: clienteTelefono || "S/D",
+    });
+
+    // 2. Crear la cotización con el ID del nuevo cliente
     const payload: CotizacionRequest = {
-      clienteId: parseInt(clienteSeleccionadoId),
+      clienteId: nuevoCliente.id!,
       fechaVencimiento: cabeceraFactura.fechaVencimiento.split("/").reverse().join("-"),
       condicionPago: cabeceraFactura.condicionPago,
       moneda: cabeceraFactura.moneda === "SOLES" ? "SOLES" : "USD",
@@ -253,29 +263,35 @@ export default function NuevaCotizacionPage() {
       })),
     };
 
-    try {
-      const exito = await cotizacionService.guardar(payload);
-      alert(`¡Cotización ${exito.numero} emitida con éxito!`);
-      setCotizacionEmitida({
-        id: exito.id,
-        cliente: {
-          nombre: clienteNombre,
-          ruc: clienteDocumento || "N/A",
-          direccion: clienteDireccion || "N/A",
-          telefono: clienteTelefono || "N/A",
-        },
-        cabecera: cabeceraFactura,
-        horaEmision: horaExactaStr,
-        items: itemsParaPDF(),
-        totalNeto: exito.total,
-      });
-      setCarrito([]);
-    } catch (error: unknown) {
-      alert(`Error: ${error instanceof Error ? error.message : "Error desconocido"}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const exito = await cotizacionService.guardar(payload);
+    alert(`¡Cotización ${exito.numero} emitida con éxito!`);
+    
+    setCotizacionEmitida({
+      id: exito.id,
+      cliente: {
+        nombre: clienteNombre,
+        ruc: clienteDocumento || "N/A",
+        direccion: clienteDireccion || "N/A",
+        telefono: clienteTelefono || "N/A",
+      },
+      cabecera: cabeceraFactura,
+      horaEmision: horaExactaStr,
+      items: itemsParaPDF(),
+      totalNeto: exito.total,
+    });
+    
+    // Limpiar
+    setClienteNombre("");
+    setClienteDocumento("");
+    setClienteDireccion("");
+    setClienteTelefono("");
+    setCarrito([]);
+  } catch (error: unknown) {
+    alert(`Error: ${error instanceof Error ? error.message : "Error desconocido"}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="space-y-6 text-slate-900">
@@ -295,36 +311,36 @@ export default function NuevaCotizacionPage() {
                 <span>Datos del Cliente</span>
               </div>
             </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Buscar Cliente</label>
-                <select
-                  className="w-full p-2.5 text-sm border rounded-lg bg-white"
-                  value={clienteSeleccionadoId}
-                  onChange={(e) => {
-                    setClienteSeleccionadoId(e.target.value);
-                    const cliente = clientes.find(c => c.id?.toString() === e.target.value);
-                    if (cliente) {
-                      setClienteNombre(cliente.nombre);
-                      setClienteDocumento(cliente.documento);
-                      setClienteDireccion(cliente.direccion);
-                      setClienteTelefono(cliente.telefono);
-                    }
-                  }}
-                >
-                  <option value="">Seleccione un cliente...</option>
-                  {clientes.map((c) => (
-                    <option key={c.id} value={c.id}>{c.nombre} - {c.documento}</option>
-                  ))}
-                </select>
-              </div>
-              {clienteSeleccionadoId && (
-                <div className="grid grid-cols-2 gap-3 text-xs text-gray-600 bg-gray-50 p-3 rounded-lg">
-                  <div><span className="font-semibold">RUC/DNI:</span> {clienteDocumento || "—"}</div>
-                  <div><span className="font-semibold">Teléfono:</span> {clienteTelefono || "—"}</div>
-                  <div className="col-span-2"><span className="font-semibold">Dirección:</span> {clienteDireccion || "—"}</div>
-                </div>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                type="text"
+                required
+                className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 focus:outline-none"
+                placeholder="Nombre / Razón Social *"
+                value={clienteNombre}
+                onChange={(e) => setClienteNombre(e.target.value)}
+              />
+              <input
+                type="text"
+                className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 focus:outline-none"
+                placeholder="RUC / DNI"
+                value={clienteDocumento}
+                onChange={(e) => setClienteDocumento(e.target.value)}
+              />
+              <input
+                type="text"
+                className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 focus:outline-none"
+                placeholder="Dirección"
+                value={clienteDireccion}
+                onChange={(e) => setClienteDireccion(e.target.value)}
+              />
+              <input
+                type="text"
+                className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 focus:outline-none"
+                placeholder="Teléfono"
+                value={clienteTelefono}
+                onChange={(e) => setClienteTelefono(e.target.value)}
+              />
             </div>
           </div>
 
