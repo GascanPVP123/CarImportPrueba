@@ -148,7 +148,6 @@ const VistaPrevia: React.FC<{
 // ============================================================
 export default function NuevaCotizacionPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [clienteSeleccionadoId, setClienteSeleccionadoId] = useState<string>("");
   const [clienteNombre, setClienteNombre] = useState("");
   const [clienteDocumento, setClienteDocumento] = useState("");
   const [clienteDireccion, setClienteDireccion] = useState("");
@@ -180,13 +179,6 @@ export default function NuevaCotizacionPage() {
       if (productosData.length > 0 && productosData[0].id) {
         setProductoSeleccionadoId(productosData[0].id.toString());
         setUnidadInput(normalizarUnidad(productosData[0].unidadMedida));
-      }
-      if (clientesData.length > 0 && clientesData[0].id) {
-        setClienteSeleccionadoId(clientesData[0].id!.toString());
-        setClienteNombre(clientesData[0].nombre);
-        setClienteDocumento(clientesData[0].documento);
-        setClienteDireccion(clientesData[0].direccion);
-        setClienteTelefono(clientesData[0].telefono);
       }
     }).catch((err: unknown) => {
       console.error("Error al cargar datos:", err instanceof Error ? err.message : "Error desconocido");
@@ -229,69 +221,83 @@ export default function NuevaCotizacionPage() {
     }));
 
   const manejarEnviarCotizacion = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!clienteNombre || carrito.length === 0) {
-    alert("Complete los datos del cliente y agregue al menos un producto.");
-    return;
-  }
-  setLoading(true);
-  const ahora = new Date();
-  const horaExactaStr = ahora.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    e.preventDefault();
+    if (!clienteNombre || carrito.length === 0) {
+      alert("Complete los datos del cliente y agregue al menos un producto.");
+      return;
+    }
+    setLoading(true);
+    const ahora = new Date();
+    const horaExactaStr = ahora.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-  try {
-    // 1. Crear el cliente primero
-    const nuevoCliente = await clienteService.guardar({
-      nombre: clienteNombre,
-      documento: clienteDocumento || "S/D",
-      direccion: clienteDireccion || "S/D",
-      telefono: clienteTelefono || "S/D",
-    });
+    try {
+      // 1. Buscar si el cliente ya existe por documento
+      let clienteId: number;
+      const clienteExistente = clientes.find(c => c.documento === clienteDocumento && clienteDocumento.trim() !== "");
 
-    // 2. Crear la cotización con el ID del nuevo cliente
-    const payload: CotizacionRequest = {
-      clienteId: nuevoCliente.id!,
-      fechaVencimiento: cabeceraFactura.fechaVencimiento.split("/").reverse().join("-"),
-      condicionPago: cabeceraFactura.condicionPago,
-      moneda: cabeceraFactura.moneda === "SOLES" ? "SOLES" : "USD",
+      if (clienteExistente) {
+        clienteId = clienteExistente.id!;
+      } else {
+        // 2. Crear nuevo cliente
+        const nuevoCliente = await clienteService.guardar({
+          nombre: clienteNombre,
+          documento: clienteDocumento.trim() || `TEMP-${Date.now()}`,
+          direccion: clienteDireccion || "",
+          telefono: clienteTelefono || "",
+          email: null,
+        });
+        clienteId = nuevoCliente.id!;
+        setClientes([...clientes, nuevoCliente]);
+      }
+
+      const payload: CotizacionRequest = {
+      clienteId,
+      fechaVencimiento: new Date().toISOString().split("T")[0], // Fecha actual en YYYY-MM-DD
+      condicionPago: "CONTADO",
+      moneda: "SOLES",
       observaciones: "",
       detalles: carrito.map((item) => ({
         productoId: item.id,
         cantidad: item.cantidad,
-        unidad: item.unidadMedida,
+        unidad: item.unidadMedida || "unidad",
         precioUnitario: item.precioVenta,
         descuento: 0,
       })),
     };
 
-    const exito = await cotizacionService.guardar(payload);
-    alert(`¡Cotización ${exito.numero} emitida con éxito!`);
-    
-    setCotizacionEmitida({
-      id: exito.id,
-      cliente: {
-        nombre: clienteNombre,
-        ruc: clienteDocumento || "N/A",
-        direccion: clienteDireccion || "N/A",
-        telefono: clienteTelefono || "N/A",
-      },
-      cabecera: cabeceraFactura,
-      horaEmision: horaExactaStr,
-      items: itemsParaPDF(),
-      totalNeto: exito.total,
-    });
-    
-    // Limpiar
-    setClienteNombre("");
-    setClienteDocumento("");
-    setClienteDireccion("");
-    setClienteTelefono("");
-    setCarrito([]);
-  } catch (error: unknown) {
-    alert(`Error: ${error instanceof Error ? error.message : "Error desconocido"}`);
-  } finally {
-    setLoading(false);
-  }
-};
+      const exito = await cotizacionService.guardar(payload);
+      alert(`¡Cotización ${exito.numero} emitida con éxito!`);
+
+      setCotizacionEmitida({
+        id: exito.id,
+        cliente: {
+          nombre: clienteNombre,
+          ruc: clienteDocumento || "N/A",
+          direccion: clienteDireccion || "N/A",
+          telefono: clienteTelefono || "N/A",
+        },
+        cabecera: cabeceraFactura,
+        horaEmision: horaExactaStr,
+        items: itemsParaPDF(),
+        totalNeto: exito.total,
+      });
+
+      setClienteNombre("");
+      setClienteDocumento("");
+      setClienteDireccion("");
+      setClienteTelefono("");
+      setCarrito([]);
+    } catch (error: unknown) {
+      const mensaje = error instanceof Error ? error.message : "Error desconocido";
+      if (mensaje.includes("Duplicate entry")) {
+        alert("El documento ya está registrado. Se usará el cliente existente.");
+      } else {
+        alert(`Error: ${mensaje}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6 text-slate-900">
@@ -302,7 +308,6 @@ export default function NuevaCotizacionPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <form onSubmit={manejarEnviarCotizacion} className="lg:col-span-2 space-y-6">
-          {/* Paso 1: Datos del Cliente */}
           <div className="bg-white p-5 border border-gray-200 rounded-xl shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-full bg-gray-800 text-white text-xs font-bold flex items-center justify-center shrink-0">1</div>
@@ -312,39 +317,13 @@ export default function NuevaCotizacionPage() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input
-                type="text"
-                required
-                className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 focus:outline-none"
-                placeholder="Nombre / Razón Social *"
-                value={clienteNombre}
-                onChange={(e) => setClienteNombre(e.target.value)}
-              />
-              <input
-                type="text"
-                className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 focus:outline-none"
-                placeholder="RUC / DNI"
-                value={clienteDocumento}
-                onChange={(e) => setClienteDocumento(e.target.value)}
-              />
-              <input
-                type="text"
-                className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 focus:outline-none"
-                placeholder="Dirección"
-                value={clienteDireccion}
-                onChange={(e) => setClienteDireccion(e.target.value)}
-              />
-              <input
-                type="text"
-                className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-gray-500 focus:outline-none"
-                placeholder="Teléfono"
-                value={clienteTelefono}
-                onChange={(e) => setClienteTelefono(e.target.value)}
-              />
+              <input type="text" required className="w-full p-2.5 text-sm border rounded-lg" placeholder="Nombre / Razón Social *" value={clienteNombre} onChange={(e) => setClienteNombre(e.target.value)} />
+              <input type="text" className="w-full p-2.5 text-sm border rounded-lg" placeholder="RUC / DNI" value={clienteDocumento} onChange={(e) => setClienteDocumento(e.target.value)} />
+              <input type="text" className="w-full p-2.5 text-sm border rounded-lg" placeholder="Dirección" value={clienteDireccion} onChange={(e) => setClienteDireccion(e.target.value)} />
+              <input type="text" className="w-full p-2.5 text-sm border rounded-lg" placeholder="Teléfono" value={clienteTelefono} onChange={(e) => setClienteTelefono(e.target.value)} />
             </div>
           </div>
 
-          {/* Paso 2: Información de la Cotización */}
           <div className="bg-white p-5 border border-gray-200 rounded-xl shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-full bg-gray-800 text-white text-xs font-bold flex items-center justify-center shrink-0">2</div>
@@ -354,83 +333,39 @@ export default function NuevaCotizacionPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Fecha Emisión</label>
-                <input type="text" className="w-full p-2.5 text-sm border rounded-lg bg-gray-50" value={cabeceraFactura.fechaEmision} readOnly />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Fecha Vencimiento</label>
-                <input type="text" className="w-full p-2.5 text-sm border rounded-lg bg-gray-50" value={cabeceraFactura.fechaVencimiento} readOnly />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Condición de Pago</label>
-                <select className="w-full p-2.5 text-sm border rounded-lg bg-white" value={cabeceraFactura.condicionPago} onChange={(e) => setCabeceraFactura({ ...cabeceraFactura, condicionPago: e.target.value })}>
-                  {OPCIONES_PAGO.map((op) => <option key={op} value={op}>{op.replace("_", " ")}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Moneda</label>
-                <select className="w-full p-2.5 text-sm border rounded-lg bg-white" value={cabeceraFactura.moneda} onChange={(e) => setCabeceraFactura({ ...cabeceraFactura, moneda: e.target.value })}>
-                  {OPCIONES_MONEDA.map((op) => <option key={op} value={op}>{op}</option>)}
-                </select>
-              </div>
+              <div><label className="text-xs text-gray-500 mb-1 block">Fecha Emisión</label><input type="text" className="w-full p-2.5 text-sm border rounded-lg bg-gray-50" value={cabeceraFactura.fechaEmision} readOnly /></div>
+              <div><label className="text-xs text-gray-500 mb-1 block">Fecha Vencimiento</label><input type="text" className="w-full p-2.5 text-sm border rounded-lg bg-gray-50" value={cabeceraFactura.fechaVencimiento} readOnly /></div>
+              <div><label className="text-xs text-gray-500 mb-1 block">Condición de Pago</label><select className="w-full p-2.5 text-sm border rounded-lg bg-white" value={cabeceraFactura.condicionPago} onChange={(e) => setCabeceraFactura({ ...cabeceraFactura, condicionPago: e.target.value })}>{OPCIONES_PAGO.map(op => <option key={op} value={op}>{op.replace("_", " ")}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500 mb-1 block">Moneda</label><select className="w-full p-2.5 text-sm border rounded-lg bg-white" value={cabeceraFactura.moneda} onChange={(e) => setCabeceraFactura({ ...cabeceraFactura, moneda: e.target.value })}>{OPCIONES_MONEDA.map(op => <option key={op} value={op}>{op}</option>)}</select></div>
             </div>
           </div>
 
-          {/* Paso 3: Seleccionar Productos */}
           <div className="bg-white p-5 border border-gray-200 rounded-xl shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-full bg-gray-800 text-white text-xs font-bold flex items-center justify-center shrink-0">3</div>
-              <div className="flex items-center gap-2 text-gray-700 font-bold text-sm">
-                <ShoppingBag className="h-4 w-4 text-gray-500" />
-                <span>Seleccionar Productos</span>
-              </div>
+              <div className="flex items-center gap-2 text-gray-700 font-bold text-sm"><ShoppingBag className="h-4 w-4 text-gray-500" /><span>Seleccionar Productos</span></div>
             </div>
             <div className="flex flex-wrap items-end gap-2">
               <select className="flex-1 min-w-[200px] p-2.5 text-sm border rounded-lg bg-white" value={productoSeleccionadoId} onChange={(e) => { setProductoSeleccionadoId(e.target.value); const prod = productos.find(p => p.id?.toString() === e.target.value); setUnidadInput(normalizarUnidad(prod?.unidadMedida)); }}>
-                {productos.map((p) => (
-                  <option key={p.id} value={p.id}>[{p.codigoSku}] {p.nombre} (Stock: {p.stock} | S/ {p.precioVenta.toFixed(2)})</option>
-                ))}
+                {productos.map((p) => (<option key={p.id} value={p.id}>[{p.codigoSku}] {p.nombre} (Stock: {p.stock} | S/ {p.precioVenta.toFixed(2)})</option>))}
               </select>
               <input type="number" min="1" className="w-20 p-2.5 text-sm border rounded-lg text-center" value={cantidadInput} onChange={(e) => setCantidadInput(parseInt(e.target.value) || 1)} />
-              <select className="w-24 p-2.5 text-sm border rounded-lg bg-white" value={unidadInput} onChange={(e) => setUnidadInput(e.target.value as Unidad)}>
-                {OPCIONES_UNIDAD.map((op) => <option key={op} value={op}>{op}</option>)}
-              </select>
-              <button type="button" onClick={agregarAlCarrito} className="flex items-center gap-1 bg-gray-800 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-900 transition">
-                <Plus className="h-4 w-4" /> Añadir Fila
-              </button>
+              <select className="w-24 p-2.5 text-sm border rounded-lg bg-white" value={unidadInput} onChange={(e) => setUnidadInput(e.target.value as Unidad)}>{OPCIONES_UNIDAD.map(op => <option key={op} value={op}>{op}</option>)}</select>
+              <button type="button" onClick={agregarAlCarrito} className="flex items-center gap-1 bg-gray-800 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-900 transition"><Plus className="h-4 w-4" /> Añadir Fila</button>
             </div>
           </div>
 
-          {/* Paso 4: Detalle de la Cotización */}
           <div className="bg-white p-5 border border-gray-200 rounded-xl shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-full bg-gray-800 text-white text-xs font-bold flex items-center justify-center shrink-0">4</div>
-              <div className="flex items-center gap-2 text-gray-700 font-bold text-sm">
-                <FileText className="h-4 w-4 text-gray-500" />
-                <span>Detalle de la Cotización</span>
-              </div>
+              <div className="flex items-center gap-2 text-gray-700 font-bold text-sm"><FileText className="h-4 w-4 text-gray-500" /><span>Detalle de la Cotización</span></div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 text-xs text-gray-500 uppercase">
-                    <th className="text-left py-2 font-semibold">SKU</th>
-                    <th className="text-left py-2 font-semibold">Descripción</th>
-                    <th className="text-center py-2 font-semibold">Unidad</th>
-                    <th className="text-center py-2 font-semibold">Cant.</th>
-                    <th className="text-right py-2 font-semibold">P. Unitario</th>
-                    <th className="text-right py-2 font-semibold">Importe</th>
-                    <th className="text-center py-2 font-semibold w-10"></th>
-                  </tr>
-                </thead>
+                <thead><tr className="border-b border-gray-200 text-xs text-gray-500 uppercase"><th className="text-left py-2 font-semibold">SKU</th><th className="text-left py-2 font-semibold">Descripción</th><th className="text-center py-2 font-semibold">Unidad</th><th className="text-center py-2 font-semibold">Cant.</th><th className="text-right py-2 font-semibold">P. Unitario</th><th className="text-right py-2 font-semibold">Importe</th><th className="text-center py-2 font-semibold w-10"></th></tr></thead>
                 <tbody className="divide-y divide-gray-100">
                   {carrito.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-gray-300 italic text-sm">
-                        Selecciona un producto y presiona Añadir Fila
-                      </td>
-                    </tr>
+                    <tr><td colSpan={7} className="py-12 text-center text-gray-300 italic text-sm">Selecciona un producto y presiona Añadir Fila</td></tr>
                   ) : (
                     carrito.map((item) => {
                       const importeItem = item.precioVenta * item.cantidad;
@@ -442,11 +377,7 @@ export default function NuevaCotizacionPage() {
                           <td className="py-2 text-center">{item.cantidad}</td>
                           <td className="py-2 text-right text-gray-600">S/ {item.precioVenta.toFixed(2)}</td>
                           <td className="py-2 text-right font-semibold">S/ {importeItem.toFixed(2)}</td>
-                          <td className="py-2 text-center">
-                            <button type="button" onClick={() => eliminarDelCarrito(item.id)} className="text-gray-400 hover:text-red-600 transition">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </td>
+                          <td className="py-2 text-center"><button type="button" onClick={() => eliminarDelCarrito(item.id)} className="text-gray-400 hover:text-red-600 transition"><Trash2 className="h-4 w-4" /></button></td>
                         </tr>
                       );
                     })
@@ -455,9 +386,7 @@ export default function NuevaCotizacionPage() {
               </table>
             </div>
             {carrito.length > 0 && (
-              <div className="flex justify-end border-t border-gray-200 pt-3">
-                <span className="text-lg font-bold text-gray-900">Total: S/ {totalNeto.toFixed(2)}</span>
-              </div>
+              <div className="flex justify-end border-t border-gray-200 pt-3"><span className="text-lg font-bold text-gray-900">Total: S/ {totalNeto.toFixed(2)}</span></div>
             )}
           </div>
 
@@ -469,32 +398,14 @@ export default function NuevaCotizacionPage() {
         <div className="lg:col-span-1">
           <div className="sticky top-6 space-y-4">
             <div className="bg-gray-100 p-4 rounded-xl border border-gray-200">
-              <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Vista Previa — COT-XXX-2026
-              </h3>
-              <VistaPrevia
-                clienteNombre={clienteNombre}
-                clienteDocumento={clienteDocumento}
-                clienteDireccion={clienteDireccion}
-                clienteTelefono={clienteTelefono}
-                cabecera={cabeceraFactura}
-                carrito={carrito}
-                totalNeto={totalNeto}
-              />
+              <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><FileText className="h-4 w-4" /> Vista Previa — COT-XXX-2026</h3>
+              <VistaPrevia clienteNombre={clienteNombre} clienteDocumento={clienteDocumento} clienteDireccion={clienteDireccion} clienteTelefono={clienteTelefono} cabecera={cabeceraFactura} carrito={carrito} totalNeto={totalNeto} />
             </div>
             {cotizacionEmitida && (
               <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
                 <p className="text-sm font-bold text-emerald-900">¡Cotización generada!</p>
                 <p className="text-xs text-emerald-700">N° #000{cotizacionEmitida.id} emitida a las {cotizacionEmitida.horaEmision}.</p>
-                <DescargarPDFButton
-                  cotizacionId={cotizacionEmitida.id}
-                  cliente={cotizacionEmitida.cliente}
-                  cabecera={cotizacionEmitida.cabecera}
-                  items={cotizacionEmitida.items}
-                  fechaEmision={cotizacionEmitida.cabecera.fechaEmision}
-                  horaEmision={cotizacionEmitida.horaEmision}
-                  fileName={`Cotizacion_Nro_${cotizacionEmitida.id}.pdf`}
-                />
+                <DescargarPDFButton cotizacionId={cotizacionEmitida.id} cliente={cotizacionEmitida.cliente} cabecera={cotizacionEmitida.cabecera} items={cotizacionEmitida.items} fechaEmision={cotizacionEmitida.cabecera.fechaEmision} horaEmision={cotizacionEmitida.horaEmision} fileName={`Cotizacion_Nro_${cotizacionEmitida.id}.pdf`} />
               </div>
             )}
           </div>

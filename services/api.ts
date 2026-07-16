@@ -17,13 +17,16 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions): 
     ...options.headers,
   };
 
+  console.log("Request:", options.method, endpoint, "Token:", token ? "Sí" : "No");
+
   const response = await fetch(`${API_BASE}${endpoint}`, {
     method: options.method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
-  if (response.status === 401) {
+  if (response.status === 401 || response.status === 403) {
+    console.error("Auth error:", response.status);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     window.location.href = "/login";
@@ -35,9 +38,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions): 
     throw new Error(error || "Error en la petición");
   }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
+  if (response.status === 204) return undefined as T;
 
   return response.json();
 }

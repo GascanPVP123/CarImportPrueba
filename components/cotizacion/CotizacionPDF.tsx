@@ -489,7 +489,7 @@ const Header: React.FC<{
       <Text style={styles.empresaNombre}>
         CAR IMPORT RAMOS & HUAMAN S.A.C.
       </Text>
-      <Text style={styles.empresaRuc}>RUC 20123456789</Text>
+      <Text style={styles.empresaRuc}>RUC 10737387572</Text>
       <Text style={styles.empresaDireccion}>
         Av. Gerardo Unger 4485 Int. 16 - C.C. El Metropolitano - Lima
       </Text>

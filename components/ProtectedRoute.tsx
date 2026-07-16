@@ -1,24 +1,35 @@
 "use client";
+
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export default function ProtectedRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && !user) {
-      router.push("/login");
+      router.replace("/login");
     }
   }, [user, isLoading, router]);
 
-  if (isLoading || !user) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-slate-500 animate-pulse">Cargando...</p>
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="animate-pulse text-slate-500">
+          Cargando...
+        </p>
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   return <>{children}</>;

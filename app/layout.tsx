@@ -9,18 +9,12 @@
     title: "CarImport System",
   };
 
-  export default function RootLayout({
-    children,
-  }: {
-    children: React.ReactNode;
-  }) {
-    return (
-      <html lang="es">
-        <body className={inter.className}>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </body>
-      </html>
-    );
-  }
+  export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="es" suppressHydrationWarning>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
+    </html>
+  );
+}

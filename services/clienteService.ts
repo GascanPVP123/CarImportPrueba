@@ -6,7 +6,7 @@ export interface Cliente {
   documento: string;
   direccion: string;
   telefono: string;
-  email?: string;
+  email?: string | null;
 }
 
 export const clienteService = {
