@@ -21,6 +21,7 @@ export interface Producto {
 }
 
 export const productoService = {
+  
   listar: () => apiRequest<Producto[]>("/productos", { method: "GET" }),
 
   obtener: (id: number) => apiRequest<Producto>(`/productos/${id}`, { method: "GET" }),

@@ -5,7 +5,7 @@ import { productoService, Producto } from "@/services/productoService";
 import { cotizacionService, CotizacionRequest } from "@/services/cotizacionService";
 import { clienteService, Cliente } from "@/services/clienteService";
 import { Plus, Trash2, FileText, User, ShoppingBag, Calendar } from "lucide-react";
-import { DescargarPDFButton } from "@/components/cotizacion/DescargarPDFButton";
+import { ModalConfirmacion } from "@/components/modales/ModalConfirmacion";
 import { ClienteData, CotizacionItem, FacturaCabecera } from "@/types/cotizacion";
 
 // ============================================================
@@ -19,15 +19,6 @@ interface CarritoItem {
   cantidad: number;
   stockDisponible: number;
   unidadMedida: string;
-}
-
-interface CotizacionEmitidaData {
-  id: number;
-  cliente: ClienteData;
-  cabecera: FacturaCabecera;
-  horaEmision: string;
-  items: CotizacionItem[];
-  totalNeto: number;
 }
 
 // ============================================================
@@ -62,9 +53,6 @@ const VistaPrevia: React.FC<{
   carrito: CarritoItem[];
   totalNeto: number;
 }> = ({ clienteNombre, clienteDocumento, clienteDireccion, clienteTelefono, cabecera, carrito, totalNeto }) => {
-  const subtotal = totalNeto / 1.18;
-  const igv = totalNeto - subtotal;
-
   return (
     <div className="bg-white border border-gray-200 shadow-sm overflow-hidden" style={{ aspectRatio: "1/1.414" }}>
       <div className="p-4 h-full flex flex-col text-[10px] leading-tight text-gray-800">
@@ -124,10 +112,12 @@ const VistaPrevia: React.FC<{
           </div>
         </div>
 
+        {/* 🔥 Solo TOTAL, sin Subtotal ni IGV */}
         <div className="text-[9px] space-y-0.5 mb-1">
-          <div className="flex justify-between"><span className="text-gray-500">Subtotal:</span><span>S/ {subtotal.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">IGV (18%):</span><span>S/ {igv.toFixed(2)}</span></div>
-          <div className="flex justify-between font-bold text-[10px] border-t border-gray-300 pt-1"><span>TOTAL:</span><span>S/ {totalNeto.toFixed(2)}</span></div>
+          <div className="flex justify-between font-bold text-[10px] border-t border-gray-300 pt-1">
+            <span>TOTAL:</span>
+            <span>S/ {totalNeto.toFixed(2)}</span>
+          </div>
         </div>
 
         <div className="text-[7px] text-gray-400 leading-tight border-t border-gray-200 pt-1">
@@ -158,9 +148,25 @@ export default function NuevaCotizacionPage() {
   const [cantidadInput, setCantidadInput] = useState<number>(1);
   const [unidadInput, setUnidadInput] = useState<Unidad>("unidad");
 
-  const [carrito, setCarrito] = useState<CarritoItem[]>([]);
+  const [carrito, setCarrito] = useState<CarritoItem[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("carrito");
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+
   const [loading, setLoading] = useState(false);
-  const [cotizacionEmitida, setCotizacionEmitida] = useState<CotizacionEmitidaData | null>(null);
+  const [mostrarModal, setMostrarModal] = useState(false);
+  const [datosConfirmacion, setDatosConfirmacion] = useState<{
+    cotizacionId: number;
+    clienteId: number;
+    cliente: ClienteData;
+    cabecera: FacturaCabecera;
+    items: CotizacionItem[];
+    totalNeto: number;
+    horaEmision: string;
+  } | null>(null);
 
   const [cabeceraFactura, setCabeceraFactura] = useState<FacturaCabecera>({
     fechaEmision: new Date().toLocaleDateString("es-PE"),
@@ -168,6 +174,10 @@ export default function NuevaCotizacionPage() {
     condicionPago: "CONTADO",
     moneda: "SOLES",
   });
+
+  useEffect(() => {
+    localStorage.setItem("carrito", JSON.stringify(carrito));
+  }, [carrito]);
 
   useEffect(() => {
     Promise.all([
@@ -193,8 +203,8 @@ export default function NuevaCotizacionPage() {
       alert(`Stock insuficiente. Disponible: ${prodReal.stock}`);
       return;
     }
-    setCarrito([...carrito, {
-      id: prodReal.id,
+    setCarrito(prev => [...prev, {
+      id: prodReal.id as number,
       codigoSku: prodReal.codigoSku || "N/A",
       nombre: prodReal.nombre,
       precioVenta: prodReal.precioVenta,
@@ -205,7 +215,7 @@ export default function NuevaCotizacionPage() {
     setCantidadInput(1);
   };
 
-  const eliminarDelCarrito = (id: number) => setCarrito(carrito.filter((item) => item.id !== id));
+  const eliminarDelCarrito = (id: number) => setCarrito(prev => prev.filter((item) => item.id !== id));
 
   const totalNeto = carrito.reduce((sum, item) => sum + item.precioVenta * item.cantidad, 0);
 
@@ -218,6 +228,7 @@ export default function NuevaCotizacionPage() {
       descripcion: item.nombre,
       precioVenta: item.precioVenta,
       importe: item.precioVenta * item.cantidad,
+      productoId: item.id,
     }));
 
   const manejarEnviarCotizacion = async (e: React.FormEvent) => {
@@ -231,45 +242,42 @@ export default function NuevaCotizacionPage() {
     const horaExactaStr = ahora.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
     try {
-      // 1. Buscar si el cliente ya existe por documento
       let clienteId: number;
       const clienteExistente = clientes.find(c => c.documento === clienteDocumento && clienteDocumento.trim() !== "");
 
       if (clienteExistente) {
         clienteId = clienteExistente.id!;
       } else {
-        // 2. Crear nuevo cliente
         const nuevoCliente = await clienteService.guardar({
           nombre: clienteNombre,
           documento: clienteDocumento.trim() || `TEMP-${Date.now()}`,
           direccion: clienteDireccion || "",
           telefono: clienteTelefono || "",
-          email: null,
         });
         clienteId = nuevoCliente.id!;
-        setClientes([...clientes, nuevoCliente]);
+        setClientes(prev => [...prev, nuevoCliente]);
       }
 
       const payload: CotizacionRequest = {
-      clienteId,
-      fechaVencimiento: new Date().toISOString().split("T")[0], // Fecha actual en YYYY-MM-DD
-      condicionPago: "CONTADO",
-      moneda: "SOLES",
-      observaciones: "",
-      detalles: carrito.map((item) => ({
-        productoId: item.id,
-        cantidad: item.cantidad,
-        unidad: item.unidadMedida || "unidad",
-        precioUnitario: item.precioVenta,
-        descuento: 0,
-      })),
-    };
+        clienteId,
+        fechaVencimiento: new Date().toISOString().split("T")[0],
+        condicionPago: "CONTADO",
+        moneda: "SOLES",
+        observaciones: "",
+        detalles: carrito.map((item) => ({
+          productoId: item.id,
+          cantidad: item.cantidad,
+          unidad: item.unidadMedida || "unidad",
+          precioUnitario: item.precioVenta,
+          descuento: 0,
+        })),
+      };
 
       const exito = await cotizacionService.guardar(payload);
-      alert(`¡Cotización ${exito.numero} emitida con éxito!`);
 
-      setCotizacionEmitida({
-        id: exito.id,
+      setDatosConfirmacion({
+        cotizacionId: exito.id,
+        clienteId: clienteId,
         cliente: {
           nombre: clienteNombre,
           ruc: clienteDocumento || "N/A",
@@ -277,20 +285,22 @@ export default function NuevaCotizacionPage() {
           telefono: clienteTelefono || "N/A",
         },
         cabecera: cabeceraFactura,
-        horaEmision: horaExactaStr,
         items: itemsParaPDF(),
         totalNeto: exito.total,
+        horaEmision: horaExactaStr,
       });
+      setMostrarModal(true);
 
       setClienteNombre("");
       setClienteDocumento("");
       setClienteDireccion("");
       setClienteTelefono("");
       setCarrito([]);
+      localStorage.removeItem("carrito");
     } catch (error: unknown) {
       const mensaje = error instanceof Error ? error.message : "Error desconocido";
       if (mensaje.includes("Duplicate entry")) {
-        alert("El documento ya está registrado. Se usará el cliente existente.");
+        alert("El documento ya está registrado.");
       } else {
         alert(`Error: ${mensaje}`);
       }
@@ -311,10 +321,7 @@ export default function NuevaCotizacionPage() {
           <div className="bg-white p-5 border border-gray-200 rounded-xl shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-full bg-gray-800 text-white text-xs font-bold flex items-center justify-center shrink-0">1</div>
-              <div className="flex items-center gap-2 text-gray-700 font-bold text-sm">
-                <User className="h-4 w-4 text-gray-500" />
-                <span>Datos del Cliente</span>
-              </div>
+              <div className="flex items-center gap-2 text-gray-700 font-bold text-sm"><User className="h-4 w-4 text-gray-500" /><span>Datos del Cliente</span></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input type="text" required className="w-full p-2.5 text-sm border rounded-lg" placeholder="Nombre / Razón Social *" value={clienteNombre} onChange={(e) => setClienteNombre(e.target.value)} />
@@ -327,10 +334,7 @@ export default function NuevaCotizacionPage() {
           <div className="bg-white p-5 border border-gray-200 rounded-xl shadow-sm space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-full bg-gray-800 text-white text-xs font-bold flex items-center justify-center shrink-0">2</div>
-              <div className="flex items-center gap-2 text-gray-700 font-bold text-sm">
-                <Calendar className="h-4 w-4 text-gray-500" />
-                <span>Información de la Cotización</span>
-              </div>
+              <div className="flex items-center gap-2 text-gray-700 font-bold text-sm"><Calendar className="h-4 w-4 text-gray-500" /><span>Información de la Cotización</span></div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div><label className="text-xs text-gray-500 mb-1 block">Fecha Emisión</label><input type="text" className="w-full p-2.5 text-sm border rounded-lg bg-gray-50" value={cabeceraFactura.fechaEmision} readOnly /></div>
@@ -401,16 +405,25 @@ export default function NuevaCotizacionPage() {
               <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2"><FileText className="h-4 w-4" /> Vista Previa — COT-XXX-2026</h3>
               <VistaPrevia clienteNombre={clienteNombre} clienteDocumento={clienteDocumento} clienteDireccion={clienteDireccion} clienteTelefono={clienteTelefono} cabecera={cabeceraFactura} carrito={carrito} totalNeto={totalNeto} />
             </div>
-            {cotizacionEmitida && (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
-                <p className="text-sm font-bold text-emerald-900">¡Cotización generada!</p>
-                <p className="text-xs text-emerald-700">N° #000{cotizacionEmitida.id} emitida a las {cotizacionEmitida.horaEmision}.</p>
-                <DescargarPDFButton cotizacionId={cotizacionEmitida.id} cliente={cotizacionEmitida.cliente} cabecera={cotizacionEmitida.cabecera} items={cotizacionEmitida.items} fechaEmision={cotizacionEmitida.cabecera.fechaEmision} horaEmision={cotizacionEmitida.horaEmision} fileName={`Cotizacion_Nro_${cotizacionEmitida.id}.pdf`} />
-              </div>
-            )}
           </div>
         </div>
       </div>
+
+      {mostrarModal && datosConfirmacion && (
+        <ModalConfirmacion
+          cotizacionId={datosConfirmacion.cotizacionId}
+          cliente={datosConfirmacion.cliente}
+          clienteId={datosConfirmacion.clienteId}
+          cabecera={datosConfirmacion.cabecera}
+          items={datosConfirmacion.items}
+          totalNeto={datosConfirmacion.totalNeto}
+          horaEmision={datosConfirmacion.horaEmision}
+          onClose={() => {
+            setMostrarModal(false);
+            setDatosConfirmacion(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -19,10 +19,10 @@ export default function ProductosPage() {
     codigoSku: "",
     nombre: "",
     descripcion: "",
-    precioCompra: 0,
-    precioVenta: 0,
-    stock: 0,
-    stockMinimo: 3,
+    precioCompra: "",
+    precioVenta: "",
+    stock: "",
+    stockMinimo: "",
     unidadMedida: "unidad",
     importadoraId: "",
   });
@@ -64,8 +64,8 @@ export default function ProductosPage() {
     setEditandoId(null);
     setForm({
       codigoSku: "", nombre: "", descripcion: "",
-      precioCompra: 0, precioVenta: 0,
-      stock: 0, stockMinimo: 3,
+      precioCompra: "", precioVenta: "",
+      stock: "", stockMinimo: "",
       unidadMedida: "unidad", importadoraId: "",
     });
     setModalAbierto(true);
@@ -77,10 +77,10 @@ export default function ProductosPage() {
       codigoSku: prod.codigoSku,
       nombre: prod.nombre,
       descripcion: prod.descripcion || "",
-      precioCompra: prod.precioCompra,
-      precioVenta: prod.precioVenta,
-      stock: prod.stock,
-      stockMinimo: prod.stockMinimo,
+      precioCompra: prod.precioCompra?.toString() || "",
+      precioVenta: prod.precioVenta?.toString() || "",
+      stock: prod.stock?.toString() || "",
+      stockMinimo: prod.stockMinimo?.toString() || "",
       unidadMedida: prod.unidadMedida || "unidad",
       importadoraId: prod.importadora?.id?.toString() || "",
     });
@@ -94,10 +94,10 @@ export default function ProductosPage() {
         codigoSku: form.codigoSku,
         nombre: form.nombre,
         descripcion: form.descripcion,
-        precioCompra: form.precioCompra,
-        precioVenta: form.precioVenta,
-        stock: form.stock,
-        stockMinimo: form.stockMinimo,
+        precioCompra: parseFloat(form.precioCompra) || 0,
+        precioVenta: parseFloat(form.precioVenta) || 0,
+        stock: parseInt(form.stock) || 0,
+        stockMinimo: parseInt(form.stockMinimo) || 3,
         unidadMedida: form.unidadMedida,
         importadora: form.importadoraId
           ? { id: parseInt(form.importadoraId), razonSocial: importadoras.find(i => i.id === parseInt(form.importadoraId))?.razonSocial || "" }
@@ -118,15 +118,14 @@ export default function ProductosPage() {
   };
 
   const eliminarProducto = async (id: number, nombre: string) => {
-  if (!confirm(`¿Eliminar "${nombre}"?`)) return;
-  try {
-    await productoService.eliminar(id);
-  } catch (err) {
-    // No mostrar error, el backend eliminó correctamente
-  }
-  // Actualizar lista siempre
-  setProductos(prev => prev.filter((p) => p.id !== id));
-};
+    if (!confirm(`¿Eliminar "${nombre}"?`)) return;
+    try {
+      await productoService.eliminar(id);
+    } catch (err) {
+      // ignorar
+    }
+    setProductos(prev => prev.filter((p) => p.id !== id));
+  };
 
   // ========================
   // MODAL IMPORTADORA RÁPIDA
@@ -135,8 +134,8 @@ export default function ProductosPage() {
     e.preventDefault();
     try {
       const imp = await importadoraService.guardar(nuevaImportadora);
-      setImportadoras([...importadoras, imp]);
-      setForm({ ...form, importadoraId: imp.id.toString() });
+      setImportadoras(prev => [...prev, imp]);
+      setForm(prev => ({ ...prev, importadoraId: imp.id.toString() }));
       setModalImportadora(false);
       setNuevaImportadora({ ruc: "", razonSocial: "", telefono: "" });
     } catch (err) {
@@ -263,21 +262,21 @@ export default function ProductosPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Precio Compra</label>
-                  <input type="number" step="0.01" className="w-full p-2.5 text-sm border rounded-lg" value={form.precioCompra} onChange={(e) => setForm({...form, precioCompra: parseFloat(e.target.value) || 0})} />
+                  <input type="number" step="0.01" placeholder="0.00" className="w-full p-2.5 text-sm border rounded-lg" value={form.precioCompra} onChange={(e) => setForm({...form, precioCompra: e.target.value})} />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Precio Venta</label>
-                  <input type="number" step="0.01" className="w-full p-2.5 text-sm border rounded-lg" value={form.precioVenta} onChange={(e) => setForm({...form, precioVenta: parseFloat(e.target.value) || 0})} />
+                  <input type="number" step="0.01" placeholder="0.00" className="w-full p-2.5 text-sm border rounded-lg" value={form.precioVenta} onChange={(e) => setForm({...form, precioVenta: e.target.value})} />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Stock</label>
-                  <input type="number" className="w-full p-2.5 text-sm border rounded-lg" value={form.stock} onChange={(e) => setForm({...form, stock: parseInt(e.target.value) || 0})} />
+                  <input type="number" placeholder="0" className="w-full p-2.5 text-sm border rounded-lg" value={form.stock} onChange={(e) => setForm({...form, stock: e.target.value})} />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Stock Mínimo</label>
-                  <input type="number" className="w-full p-2.5 text-sm border rounded-lg" value={form.stockMinimo} onChange={(e) => setForm({...form, stockMinimo: parseInt(e.target.value) || 3})} />
+                  <input type="number" placeholder="3" className="w-full p-2.5 text-sm border rounded-lg" value={form.stockMinimo} onChange={(e) => setForm({...form, stockMinimo: e.target.value})} />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Unidad</label>
@@ -305,13 +304,7 @@ export default function ProductosPage() {
                 </div>
                 {form.importadoraId && (
                   <div className="mt-2 flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setForm({ ...form, importadoraId: "" })}
-                      className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                    >
-                      Desvincular
-                    </button>
+                    <button type="button" onClick={() => setForm({ ...form, importadoraId: "" })} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">Desvincular</button>
                     <button
                       type="button"
                       onClick={async () => {
@@ -320,8 +313,8 @@ export default function ProductosPage() {
                         if (!confirm(`¿Eliminar definitivamente la importadora "${imp.razonSocial}"?`)) return;
                         try {
                           await importadoraService.eliminar(imp.id);
-                          setImportadoras(importadoras.filter(i => i.id !== imp.id));
-                          setForm({ ...form, importadoraId: "" });
+                          setImportadoras(prev => prev.filter(i => i.id !== imp.id));
+                          setForm(prev => ({ ...prev, importadoraId: "" }));
                           const prods = await productoService.listar();
                           setProductos(prods);
                         } catch (err) {
@@ -357,12 +350,9 @@ export default function ProductosPage() {
               <button onClick={() => setModalImportadora(false)} className="text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>
             </div>
             <form onSubmit={guardarImportadora} className="space-y-3">
-              <input type="text" required placeholder="RUC" className="w-full p-2.5 text-sm border rounded-lg"
-                value={nuevaImportadora.ruc} onChange={(e) => setNuevaImportadora({ ...nuevaImportadora, ruc: e.target.value })} />
-              <input type="text" required placeholder="Razón Social" className="w-full p-2.5 text-sm border rounded-lg"
-                value={nuevaImportadora.razonSocial} onChange={(e) => setNuevaImportadora({ ...nuevaImportadora, razonSocial: e.target.value })} />
-              <input type="text" placeholder="Teléfono" className="w-full p-2.5 text-sm border rounded-lg"
-                value={nuevaImportadora.telefono} onChange={(e) => setNuevaImportadora({ ...nuevaImportadora, telefono: e.target.value })} />
+              <input type="text" required placeholder="RUC" className="w-full p-2.5 text-sm border rounded-lg" value={nuevaImportadora.ruc} onChange={(e) => setNuevaImportadora({ ...nuevaImportadora, ruc: e.target.value })} />
+              <input type="text" required placeholder="Razón Social" className="w-full p-2.5 text-sm border rounded-lg" value={nuevaImportadora.razonSocial} onChange={(e) => setNuevaImportadora({ ...nuevaImportadora, razonSocial: e.target.value })} />
+              <input type="text" placeholder="Teléfono" className="w-full p-2.5 text-sm border rounded-lg" value={nuevaImportadora.telefono} onChange={(e) => setNuevaImportadora({ ...nuevaImportadora, telefono: e.target.value })} />
               <div className="flex justify-end gap-2 pt-3">
                 <button type="button" onClick={() => setModalImportadora(false)} className="px-4 py-2 text-sm border rounded-lg">Cancelar</button>
                 <button type="submit" className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg font-bold">Guardar</button>

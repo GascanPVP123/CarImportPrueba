@@ -13,6 +13,7 @@ export interface CotizacionItem {
   descripcion: string;
   precioVenta: number;
   importe: number;
+  productoId?: number;
 }
 
 export interface CotizacionPDFProps {
