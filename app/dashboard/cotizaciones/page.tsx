@@ -98,7 +98,7 @@ const VistaPrevia: React.FC<{
               <div className="text-[8px] text-gray-300 text-center py-8 italic">Sin productos</div>
             ) : (
               carrito.map((item, idx) => (
-                <div key={item.id} className="grid grid-cols-12 text-[8px] border-b border-gray-100">
+                <div key={`${item.id}-${idx}`} className="grid grid-cols-12 text-[8px] border-b border-gray-100">
                   <div className="col-span-1 px-1 py-0.5 text-center text-gray-500">{idx + 1}</div>
                   <div className="col-span-2 px-1 py-0.5 text-gray-600">{item.codigoSku}</div>
                   <div className="col-span-4 px-1 py-0.5 truncate">{item.nombre}</div>
@@ -112,11 +112,9 @@ const VistaPrevia: React.FC<{
           </div>
         </div>
 
-        {/* 🔥 Solo TOTAL, sin Subtotal ni IGV */}
         <div className="text-[9px] space-y-0.5 mb-1">
           <div className="flex justify-between font-bold text-[10px] border-t border-gray-300 pt-1">
-            <span>TOTAL:</span>
-            <span>S/ {totalNeto.toFixed(2)}</span>
+            <span>TOTAL:</span><span>S/ {totalNeto.toFixed(2)}</span>
           </div>
         </div>
 
@@ -180,38 +178,59 @@ export default function NuevaCotizacionPage() {
   }, [carrito]);
 
   useEffect(() => {
-    Promise.all([
-      productoService.listar(),
-      clienteService.listar(),
-    ]).then(([productosData, clientesData]) => {
-      setProductos(productosData);
-      setClientes(clientesData);
-      if (productosData.length > 0 && productosData[0].id) {
-        setProductoSeleccionadoId(productosData[0].id.toString());
-        setUnidadInput(normalizarUnidad(productosData[0].unidadMedida));
-      }
-    }).catch((err: unknown) => {
-      console.error("Error al cargar datos:", err instanceof Error ? err.message : "Error desconocido");
-    });
+    Promise.all([productoService.listar(), clienteService.listar()])
+      .then(([productosData, clientesData]) => {
+        setProductos(productosData);
+        setClientes(clientesData);
+        if (productosData.length > 0 && productosData[0].id) {
+          setProductoSeleccionadoId(productosData[0].id.toString());
+          setUnidadInput(normalizarUnidad(productosData[0].unidadMedida));
+        }
+      })
+      .catch((err: unknown) => {
+        console.error("Error al cargar datos:", err instanceof Error ? err.message : "Error desconocido");
+      });
   }, []);
 
+  // 🔥 Agregar al carrito: si el producto ya existe, SUMA la cantidad
   const agregarAlCarrito = () => {
     if (!productoSeleccionadoId) return;
     const prodReal = productos.find((p) => p.id?.toString() === productoSeleccionadoId);
     if (!prodReal || !prodReal.id) return;
-    if (prodReal.stock < cantidadInput) {
-      alert(`Stock insuficiente. Disponible: ${prodReal.stock}`);
-      return;
-    }
-    setCarrito(prev => [...prev, {
-      id: prodReal.id as number,
-      codigoSku: prodReal.codigoSku || "N/A",
-      nombre: prodReal.nombre,
-      precioVenta: prodReal.precioVenta,
-      cantidad: cantidadInput,
-      stockDisponible: prodReal.stock,
-      unidadMedida: unidadInput,
-    }]);
+
+    const cantidadTotal = cantidadInput;
+    const stockDisponible = prodReal.stock;
+
+    setCarrito(prev => {
+      const existente = prev.find(item => item.id === prodReal.id);
+      
+      if (existente) {
+        const nuevaCantidad = existente.cantidad + cantidadTotal;
+        if (stockDisponible < nuevaCantidad) {
+          alert(`Stock insuficiente. Disponible: ${stockDisponible}, ya tienes ${existente.cantidad} en el carrito.`);
+          return prev;
+        }
+        return prev.map(item =>
+          item.id === prodReal.id
+            ? { ...item, cantidad: nuevaCantidad, unidadMedida: unidadInput }
+            : item
+        );
+      } else {
+        if (stockDisponible < cantidadTotal) {
+          alert(`Stock insuficiente. Disponible: ${stockDisponible}`);
+          return prev;
+        }
+        return [...prev, {
+          id: prodReal.id as number,
+          codigoSku: prodReal.codigoSku || "N/A",
+          nombre: prodReal.nombre,
+          precioVenta: prodReal.precioVenta,
+          cantidad: cantidadTotal,
+          stockDisponible: prodReal.stock,
+          unidadMedida: unidadInput,
+        }];
+      }
+    });
     setCantidadInput(1);
   };
 
@@ -231,6 +250,27 @@ export default function NuevaCotizacionPage() {
       productoId: item.id,
     }));
 
+  // 🔥 Agrupar detalles antes de enviar al backend
+  const agruparDetalles = () => {
+    const agrupados: { [key: number]: { productoId: number; cantidad: number; unidad: string; precioUnitario: number; descuento: number } } = {};
+    
+    carrito.forEach(item => {
+      if (agrupados[item.id]) {
+        agrupados[item.id].cantidad += item.cantidad;
+      } else {
+        agrupados[item.id] = {
+          productoId: item.id,
+          cantidad: item.cantidad,
+          unidad: item.unidadMedida,
+          precioUnitario: item.precioVenta,
+          descuento: 0,
+        };
+      }
+    });
+    
+    return Object.values(agrupados);
+  };
+
   const manejarEnviarCotizacion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clienteNombre || carrito.length === 0) {
@@ -242,15 +282,27 @@ export default function NuevaCotizacionPage() {
     const horaExactaStr = ahora.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
     try {
+      const documentoLimpio = clienteDocumento.trim();
       let clienteId: number;
-      const clienteExistente = clientes.find(c => c.documento === clienteDocumento && clienteDocumento.trim() !== "");
 
-      if (clienteExistente) {
-        clienteId = clienteExistente.id!;
+      if (documentoLimpio) {
+        const clienteExistente = clientes.find(c => c.documento === documentoLimpio);
+        if (clienteExistente) {
+          clienteId = clienteExistente.id!;
+        } else {
+          const nuevoCliente = await clienteService.guardar({
+            nombre: clienteNombre,
+            documento: documentoLimpio,
+            direccion: clienteDireccion || "",
+            telefono: clienteTelefono || "",
+          });
+          clienteId = nuevoCliente.id!;
+          setClientes(prev => [...prev, nuevoCliente]);
+        }
       } else {
         const nuevoCliente = await clienteService.guardar({
           nombre: clienteNombre,
-          documento: clienteDocumento.trim() || `TEMP-${Date.now()}`,
+          documento: `TEMP-${Date.now()}`,
           direccion: clienteDireccion || "",
           telefono: clienteTelefono || "",
         });
@@ -264,13 +316,7 @@ export default function NuevaCotizacionPage() {
         condicionPago: "CONTADO",
         moneda: "SOLES",
         observaciones: "",
-        detalles: carrito.map((item) => ({
-          productoId: item.id,
-          cantidad: item.cantidad,
-          unidad: item.unidadMedida || "unidad",
-          precioUnitario: item.precioVenta,
-          descuento: 0,
-        })),
+        detalles: agruparDetalles(),
       };
 
       const exito = await cotizacionService.guardar(payload);
@@ -280,7 +326,7 @@ export default function NuevaCotizacionPage() {
         clienteId: clienteId,
         cliente: {
           nombre: clienteNombre,
-          ruc: clienteDocumento || "N/A",
+          ruc: documentoLimpio || "N/A",
           direccion: clienteDireccion || "N/A",
           telefono: clienteTelefono || "N/A",
         },
@@ -299,11 +345,7 @@ export default function NuevaCotizacionPage() {
       localStorage.removeItem("carrito");
     } catch (error: unknown) {
       const mensaje = error instanceof Error ? error.message : "Error desconocido";
-      if (mensaje.includes("Duplicate entry")) {
-        alert("El documento ya está registrado.");
-      } else {
-        alert(`Error: ${mensaje}`);
-      }
+      alert(`Error: ${mensaje}`);
     } finally {
       setLoading(false);
     }
@@ -371,10 +413,10 @@ export default function NuevaCotizacionPage() {
                   {carrito.length === 0 ? (
                     <tr><td colSpan={7} className="py-12 text-center text-gray-300 italic text-sm">Selecciona un producto y presiona Añadir Fila</td></tr>
                   ) : (
-                    carrito.map((item) => {
+                    carrito.map((item, index) => {
                       const importeItem = item.precioVenta * item.cantidad;
                       return (
-                        <tr key={item.id} className="hover:bg-gray-50/50">
+                        <tr key={`${item.id}-${index}`} className="hover:bg-gray-50/50">
                           <td className="py-2 font-mono text-xs text-gray-600">{item.codigoSku}</td>
                           <td className="py-2 font-medium text-gray-900">{item.nombre}</td>
                           <td className="py-2 text-center text-gray-500">{item.unidadMedida}</td>
@@ -418,10 +460,7 @@ export default function NuevaCotizacionPage() {
           items={datosConfirmacion.items}
           totalNeto={datosConfirmacion.totalNeto}
           horaEmision={datosConfirmacion.horaEmision}
-          onClose={() => {
-            setMostrarModal(false);
-            setDatosConfirmacion(null);
-          }}
+          onClose={() => { setMostrarModal(false); setDatosConfirmacion(null); }}
         />
       )}
     </div>

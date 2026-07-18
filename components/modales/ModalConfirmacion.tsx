@@ -3,7 +3,7 @@
 import { X, FileText, CheckCircle } from "lucide-react";
 import { CotizacionItem, ClienteData, FacturaCabecera } from "@/types/cotizacion";
 import { DescargarPDFButton } from "@/components/cotizacion/DescargarPDFButton";
-import { NotaVentaPDF } from "@/components/cotizacion/NotaVentaPDF";
+import  NotaVentaPDF  from "@/components/cotizacion/NotaVentaPDF";
 import { notaVentaService } from "@/services/notaVentaService";
 import { useState } from "react";
 
