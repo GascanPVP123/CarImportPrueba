@@ -14,77 +14,6 @@ const COLORS = {
   success: "#059669",
 };
 
-const CAP_PRIMERA = 24;
-const CAP_INTERMEDIA = 31;
-const CAP_ULTIMA = 12;
-const PAGE_HEIGHT = 842;
-
-
-function distribuirPaginas(items: NotaVentaPDFProps["items"]) {
-    const capPrimera = CAP_PRIMERA;
-    const capIntermedia = CAP_INTERMEDIA;
-    const capUltima = CAP_ULTIMA;
-
-  const paginas: Array<{
-    items: typeof items;
-    isFirst: boolean;
-    isLast: boolean;
-  }> = [];
-
-  if (items.length === 0) {
-    return [{ items: [], isFirst: true, isLast: true }];
-  }
-
-  let inicio = 0;
-  let primera = true;
-
-  // =====================================================
-  // Construcción de páginas
-  // =====================================================
-  while (true) {
-    const restantes = items.length - inicio;
-
-    // Si lo que queda ya entra en la última página, terminamos.
-    if (restantes <= capUltima) {
-      paginas.push({
-        items: items.slice(inicio),
-        isFirst: primera,
-        isLast: true,
-      });
-      break;
-    }
-
-    const capacidad = primera ? capPrimera : capIntermedia;
-
-    paginas.push({
-      items: items.slice(inicio, inicio + capacidad),
-      isFirst: primera,
-      isLast: false,
-    });
-
-    inicio += capacidad;
-    primera = false;
-  }
-
-  // =====================================================
-  // Balanceo final
-  // =====================================================
-  if (paginas.length >= 2) {
-    const ultima = paginas[paginas.length - 1];
-    const anterior = paginas[paginas.length - 2];
-
-    // Intentar que ambas páginas queden lo más parejas posible
-    while (
-      ultima.items.length < capUltima &&
-      anterior.items.length > Math.ceil(capIntermedia / 2)
-    ) {
-      ultima.items.unshift(anterior.items.pop()!);
-    }
-  }
-
-  return paginas;
-}
-
 const styles = StyleSheet.create({
   page: { padding: 25, paddingBottom: 50, fontSize: 8, fontFamily: "Helvetica", color: COLORS.textDark, backgroundColor: COLORS.white },
   headerContainer: { flexDirection: "row", borderWidth: 1, borderColor: COLORS.primary, borderRadius: 4, overflow: "hidden", marginBottom: 10 },
@@ -162,98 +91,89 @@ interface NotaVentaPDFProps {
 }
 
 export default function NotaVentaPDF({ id, cliente, items, fechaEmision, horaEmision, totalNeto }: NotaVentaPDFProps) {
-  const paginas = distribuirPaginas(items);
-
   return (
     <Document>
-      {paginas.map((pagina, pageIndex) => (
-        <Page key={pageIndex} size="A4" style={styles.page}>
-          <View style={styles.headerContainer}>
-            <View style={styles.logoSection}><Image src="/images/logo_empresa.jpg" style={styles.logo} /></View>
-            <View style={styles.empresaSection}>
-              <Text style={styles.empresaNombre}>CAR IMPORT RAMOS & HUAMAN S.A.C.</Text>
-              <Text style={styles.empresaRuc}>RUC 20123456789</Text>
-              <Text style={styles.empresaDireccion}>Av. Gerardo Unger 4485 Int. 16 - Lima</Text>
-              <Text style={styles.empresaContacto}>Tel: 977 182 320</Text>
-              <Text style={styles.empresaEmail}>ventas@carimport.com</Text>
-            </View>
-            <View style={styles.docSection}>
-              <Text style={styles.docLabel}>NOTA DE VENTA</Text>
-              <Text style={styles.docNumero}>NV-000{id}</Text>
-              <Text style={styles.docFecha}>{fechaEmision} - {horaEmision}</Text>
+      <Page size="A4" style={styles.page}>
+        <View style={styles.headerContainer}>
+          <View style={styles.logoSection}><Image src="/images/logo_empresa.jpg" style={styles.logo} /></View>
+          <View style={styles.empresaSection}>
+            <Text style={styles.empresaNombre}>CAR IMPORT RAMOS & HUAMAN S.A.C.</Text>
+            <Text style={styles.empresaRuc}>RUC 20123456789</Text>
+            <Text style={styles.empresaDireccion}>Av. Gerardo Unger 4485 Int. 16 - Lima</Text>
+            <Text style={styles.empresaContacto}>Tel: 977 182 320</Text>
+            <Text style={styles.empresaEmail}>ventas@carimport.com</Text>
+          </View>
+          <View style={styles.docSection}>
+            <Text style={styles.docLabel}>NOTA DE VENTA</Text>
+            <Text style={styles.docNumero}>NV-000{id}</Text>
+            <Text style={styles.docFecha}>{fechaEmision} - {horaEmision}</Text>
+          </View>
+        </View>
+
+        <View style={styles.clienteContainer}>
+          <View style={styles.clienteBox}>
+            <View style={styles.clienteHeader}><Text style={styles.clienteHeaderText}>Datos del Cliente</Text></View>
+            <View style={styles.clienteBody}>
+              <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>Cliente:</Text><Text style={styles.clienteFieldValue}>{cliente.nombre}</Text></View>
+              <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>RUC/DNI:</Text><Text style={styles.clienteFieldValue}>{cliente.ruc}</Text></View>
+              <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>Dirección:</Text><Text style={styles.clienteFieldValue}>{cliente.direccion}</Text></View>
+              <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>Teléfono:</Text><Text style={styles.clienteFieldValue}>{cliente.telefono}</Text></View>
             </View>
           </View>
-
-          {pagina.isFirst && (
-            <View style={styles.clienteContainer}>
-              <View style={styles.clienteBox}>
-                <View style={styles.clienteHeader}><Text style={styles.clienteHeaderText}>Datos del Cliente</Text></View>
-                <View style={styles.clienteBody}>
-                  <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>Cliente:</Text><Text style={styles.clienteFieldValue}>{cliente.nombre}</Text></View>
-                  <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>RUC/DNI:</Text><Text style={styles.clienteFieldValue}>{cliente.ruc}</Text></View>
-                  <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>Dirección:</Text><Text style={styles.clienteFieldValue}>{cliente.direccion}</Text></View>
-                  <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>Teléfono:</Text><Text style={styles.clienteFieldValue}>{cliente.telefono}</Text></View>
-                </View>
-              </View>
-              <View style={styles.infoBox}>
-                <View style={styles.infoHeader}><Text style={styles.infoHeaderText}>Información</Text></View>
-                <View style={styles.infoBody}>
-                  <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Fecha:</Text><Text style={styles.infoFieldValue}>{fechaEmision}</Text></View>
-                  <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Moneda:</Text><Text style={styles.infoFieldValue}>SOLES</Text></View>
-                  <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Condición:</Text><Text style={styles.infoFieldValue}>CONTADO</Text></View>
-                  <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Vigencia:</Text><Text style={[styles.infoFieldValue, { color: COLORS.success, fontWeight: "bold" }]}>Inmediata</Text></View>
-                </View>
-              </View>
+          <View style={styles.infoBox}>
+            <View style={styles.infoHeader}><Text style={styles.infoHeaderText}>Información</Text></View>
+            <View style={styles.infoBody}>
+              <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Fecha:</Text><Text style={styles.infoFieldValue}>{fechaEmision}</Text></View>
+              <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Moneda:</Text><Text style={styles.infoFieldValue}>SOLES</Text></View>
+              <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Condición:</Text><Text style={styles.infoFieldValue}>CONTADO</Text></View>
+              <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Vigencia:</Text><Text style={[styles.infoFieldValue, { color: COLORS.success, fontWeight: "bold" }]}>Inmediata</Text></View>
             </View>
-          )}
+          </View>
+        </View>
 
-          <View style={styles.tableContainer}>
-            <View style={styles.tableHeader}>
-              <Text style={styles.colItem}>ITEM</Text><Text style={styles.colCodigo}>CÓDIGO</Text><Text style={styles.colDesc}>DESCRIPCIÓN</Text>
-              <Text style={styles.colCant}>CANT</Text><Text style={styles.colUnid}>UND</Text><Text style={styles.colPrecio}>P.UNIT</Text><Text style={styles.colImporte}>IMPORTE</Text>
+        <View style={styles.tableContainer}>
+          <View style={styles.tableHeader}>
+            <Text style={styles.colItem}>ITEM</Text><Text style={styles.colCodigo}>CÓDIGO</Text><Text style={styles.colDesc}>DESCRIPCIÓN</Text>
+            <Text style={styles.colCant}>CANT</Text><Text style={styles.colUnid}>UND</Text><Text style={styles.colPrecio}>P.UNIT</Text><Text style={styles.colImporte}>IMPORTE</Text>
+          </View>
+          {items.map((item, i) => (
+            <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlternate : {}]} wrap={false}>
+              <Text style={styles.cellItem}>{item.item}</Text><Text style={styles.cellCodigo}>{item.codigo}</Text><Text style={styles.cellDesc}>{item.descripcion}</Text>
+              <Text style={styles.cellCant}>{item.cantidad}</Text><Text style={styles.cellUnid}>{item.unidad}</Text><Text style={styles.cellPrecio}>{item.precioVenta.toFixed(2)}</Text><Text style={styles.cellImporte}>{item.importe.toFixed(2)}</Text>
             </View>
-            {pagina.items.map((item, i) => (
-              <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlternate : {}]} wrap={false}>
-                <Text style={styles.cellItem}>{item.item}</Text><Text style={styles.cellCodigo}>{item.codigo}</Text><Text style={styles.cellDesc}>{item.descripcion}</Text>
-                <Text style={styles.cellCant}>{item.cantidad}</Text><Text style={styles.cellUnid}>{item.unidad}</Text><Text style={styles.cellPrecio}>{item.precioVenta.toFixed(2)}</Text><Text style={styles.cellImporte}>{item.importe.toFixed(2)}</Text>
-              </View>
-            ))}
-          </View>
+          ))}
+        </View>
 
-          {pagina.isLast && (
-            <>
-              <View style={styles.observacionesSection}>
-                <Text style={styles.observacionesTitulo}>Observaciones</Text>
-                <Text style={styles.observacionLine}>• Precios incluyen IGV.</Text>
-                <Text style={styles.observacionLine}>• Productos sujetos a disponibilidad de stock.</Text>
-                <Text style={styles.observacionLine}>• Documento válido como comprobante de pago.</Text>
-              </View>
-              <View style={styles.bottomRow}>
-                <View style={styles.cuentasSection}>
-                  <Text style={styles.cuentasTitulo}>Cuentas Bancarias</Text>
-                  <Text style={styles.cuentaLine}>BCP Soles: 191-01945499-0-48</Text>
-                  <Text style={styles.cuentaLine}>CCI: 002-191-10194549904851</Text>
-                  <Text style={styles.cuentaTitular}>Titular: CAR IMPORT RAMOS & HUAMAN S.A.C.</Text>
-                </View>
-                <View style={styles.qrSection}>
-                  <Image src="/images/yape.png" style={styles.qrImage} />
-                  <Text style={styles.qrNumero}>977 182 320</Text>
-                  <Text style={styles.qrNombre}>Yino Jauregui</Text>
-                </View>
-                <View style={styles.totalSection}>
-                  <Text style={styles.totalLabel}>Total</Text>
-                  <Text style={styles.totalValue}>S/ {totalNeto.toFixed(2)}</Text>
-                </View>
-              </View>
-            </>
-          )}
+        <View style={styles.observacionesSection}>
+          <Text style={styles.observacionesTitulo}>Observaciones</Text>
+          <Text style={styles.observacionLine}>• Precios incluyen IGV.</Text>
+          <Text style={styles.observacionLine}>• Productos sujetos a disponibilidad de stock.</Text>
+          <Text style={styles.observacionLine}>• Documento válido como comprobante de pago.</Text>
+        </View>
 
-          <View style={styles.footerFixed} fixed>
-            <Text style={styles.footerText}>Gracias por su compra.</Text>
-            <Text style={styles.footerText}>Documento válido como comprobante de pago.</Text>
+        <View style={styles.bottomRow}>
+          <View style={styles.cuentasSection}>
+            <Text style={styles.cuentasTitulo}>Cuentas Bancarias</Text>
+            <Text style={styles.cuentaLine}>BCP Soles: 191-01945499-0-48</Text>
+            <Text style={styles.cuentaLine}>CCI: 002-191-10194549904851</Text>
+            <Text style={styles.cuentaTitular}>Titular: CAR IMPORT RAMOS & HUAMAN S.A.C.</Text>
           </View>
-        </Page>
-      ))}
+          <View style={styles.qrSection}>
+            <Image src="/images/yape.png" style={styles.qrImage} />
+            <Text style={styles.qrNumero}>977 182 320</Text>
+            <Text style={styles.qrNombre}>Yino Jauregui</Text>
+          </View>
+          <View style={styles.totalSection}>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalValue}>S/ {totalNeto.toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.footerFixed} fixed>
+          <Text style={styles.footerText}>Gracias por su compra.</Text>
+          <Text style={styles.footerText}>Documento válido como comprobante de pago.</Text>
+        </View>
+      </Page>
     </Document>
   );
 }
