@@ -5,13 +5,18 @@ export interface ClienteData {
   telefono: string;
 }
 
+
+export type TipoPrecio = "MENOR" | "MAYOR" | "LIBRE";
 export interface CotizacionItem {
-  item: number;
+  item?: number;
   codigo: string;
   cantidad: number;
   unidad: string;
   descripcion: string;
   precioVenta: number;
+  precioMenor?: number;
+  precioMayor?: number;
+  tipoPrecio?: TipoPrecio;
   importe: number;
   productoId?: number;
 }

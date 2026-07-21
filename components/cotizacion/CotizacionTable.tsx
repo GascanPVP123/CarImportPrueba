@@ -1,3 +1,6 @@
+"use client";
+
+import React from "react";
 import {
   Table,
   TableBody,
@@ -6,13 +9,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CotizacionItem } from "@/types/cotizacion";
+import { CotizacionItem, TipoPrecio } from "@/types/cotizacion";
 
 interface CotizacionTableProps {
   items: CotizacionItem[];
+  onCambiarTipoPrecio?: (index: number, nuevoTipo: TipoPrecio) => void;
+  onCambiarPrecioManual?: (index: number, nuevoPrecio: number) => void;
 }
 
-export function CotizacionTable({ items }: CotizacionTableProps) {
+export function CotizacionTable({
+  items,
+  onCambiarTipoPrecio,
+  onCambiarPrecioManual,
+}: CotizacionTableProps) {
   return (
     <div className="border border-[#E5E7EB] rounded-none overflow-hidden">
       <Table className="text-xs">
@@ -33,7 +42,7 @@ export function CotizacionTable({ items }: CotizacionTableProps) {
             <TableHead className="font-bold text-gray-600 py-1.5">
               DESCRIPCIÓN
             </TableHead>
-            <TableHead className="w-[90px] text-right font-bold text-gray-600 py-1.5">
+            <TableHead className="w-[140px] text-right font-bold text-gray-600 py-1.5">
               P. VENTA
             </TableHead>
             <TableHead className="w-[90px] text-right font-bold text-gray-600 py-1.5">
@@ -49,31 +58,81 @@ export function CotizacionTable({ items }: CotizacionTableProps) {
               </TableCell>
             </TableRow>
           ) : (
-            items.map((item) => (
-              <TableRow key={item.item} className="border-b border-[#E5E7EB] hover:bg-gray-50/50">
-                <TableCell className="text-center font-mono text-gray-600 py-1">
-                  {item.item}
-                </TableCell>
-                <TableCell className="font-mono text-gray-700 py-1">
-                  {item.codigo}
-                </TableCell>
-                <TableCell className="text-center text-gray-700 py-1">
-                  {item.cantidad}
-                </TableCell>
-                <TableCell className="text-center text-gray-500 py-1">
-                  {item.unidad}
-                </TableCell>
-                <TableCell className="text-gray-800 py-1">
-                  {item.descripcion}
-                </TableCell>
-                <TableCell className="text-right font-mono text-gray-700 py-1">
-                  {item.precioVenta.toFixed(2)}
-                </TableCell>
-                <TableCell className="text-right font-mono font-semibold text-gray-900 py-1">
-                  {item.importe.toFixed(2)}
-                </TableCell>
-              </TableRow>
-            ))
+            items.map((item, index) => {
+              const numeroItem = index + 1;
+
+              return (
+                <TableRow
+                  key={item.productoId || index}
+                  className="border-b border-[#E5E7EB] hover:bg-gray-50/50"
+                >
+                  <TableCell className="text-center font-mono text-gray-600 py-2">
+                    {numeroItem}
+                  </TableCell>
+                  <TableCell className="font-mono text-gray-700 py-2">
+                    {item.codigo}
+                  </TableCell>
+                  <TableCell className="text-center text-gray-700 py-2">
+                    {item.cantidad}
+                  </TableCell>
+                  <TableCell className="text-center text-gray-500 py-2">
+                    {item.unidad}
+                  </TableCell>
+                  <TableCell className="text-gray-800 py-2">
+                    {item.descripcion}
+                  </TableCell>
+
+                  {/* Selector e Input con callback defensivo */}
+                  <TableCell className="text-right py-2 min-w-[140px]">
+                    <div className="flex flex-col gap-1 items-end">
+                      {onCambiarTipoPrecio ? (
+                        <select
+                          value={item.tipoPrecio || "MENOR"}
+                          onChange={(e) =>
+                            onCambiarTipoPrecio(index, e.target.value as TipoPrecio)
+                          }
+                          className="text-[11px] border rounded px-1 py-0.5 bg-background text-foreground focus:outline-none"
+                        >
+                          <option value="MENOR">
+                            P. Menor (S/ {(item.precioMenor || item.precioVenta).toFixed(2)})
+                          </option>
+                          <option value="MAYOR">
+                            P. Mayor (S/ {(item.precioMayor || item.precioVenta).toFixed(2)})
+                          </option>
+                          <option value="LIBRE">✏️ Oferta Libre</option>
+                        </select>
+                      ) : null}
+
+                      {item.tipoPrecio === "LIBRE" && onCambiarPrecioManual ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500">S/</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={item.precioVenta}
+                            onChange={(e) =>
+                              onCambiarPrecioManual(
+                                index,
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            className="w-20 text-right text-xs font-mono font-semibold border rounded px-1 py-0.5 bg-amber-50 focus:bg-white"
+                          />
+                        </div>
+                      ) : (
+                        <span className="font-mono text-xs text-gray-700 font-medium">
+                          S/ {item.precioVenta.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="text-right font-mono font-semibold text-gray-900 py-2">
+                    S/ {item.importe.toFixed(2)}
+                  </TableCell>
+                </TableRow>
+              );
+            })
           )}
         </TableBody>
       </Table>

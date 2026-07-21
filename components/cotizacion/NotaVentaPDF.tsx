@@ -1,5 +1,6 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
+import { NotaVentaHistorial } from "@/types/notaVenta";
 
 const COLORS = {
   primary: "#1e3a5f",
@@ -27,7 +28,7 @@ const styles = StyleSheet.create({
   empresaEmail: { fontSize: 6.5, color: COLORS.textLight, marginTop: 1 },
   docSection: { width: 105, padding: 8, justifyContent: "center", alignItems: "center", borderLeftWidth: 1, borderLeftColor: COLORS.border, backgroundColor: COLORS.totalBg },
   docLabel: { fontSize: 8, fontWeight: "bold", color: COLORS.totalText, textTransform: "uppercase" },
-  docNumero: { fontSize: 13, fontWeight: "bold", color: COLORS.totalText, marginTop: 2 },
+  docNumero: { fontSize: 11, fontWeight: "bold", color: COLORS.totalText, marginTop: 2 },
   docFecha: { fontSize: 6, color: COLORS.totalText, marginTop: 2 },
   clienteContainer: { flexDirection: "row", marginBottom: 10, gap: 6 },
   clienteBox: { flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 4, overflow: "hidden" },
@@ -48,20 +49,20 @@ const styles = StyleSheet.create({
   tableHeader: { flexDirection: "row", backgroundColor: COLORS.primary },
   tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: COLORS.border },
   tableRowAlternate: { backgroundColor: COLORS.headerBg },
-  colItem: { width: 28, textAlign: "center", paddingVertical: 10, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
-  colCodigo: { width: 55, textAlign: "center", paddingVertical: 10, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
-  colDesc: { flex: 1, paddingLeft: 5, paddingVertical: 10, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
-  colCant: { width: 35, textAlign: "center", paddingVertical: 10, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
-  colUnid: { width: 35, textAlign: "center", paddingVertical: 10, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
-  colPrecio: { width: 55, textAlign: "right", paddingRight: 5, paddingVertical: 10, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
-  colImporte: { width: 60, textAlign: "right", paddingRight: 5, paddingVertical: 10, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
-  cellItem: { width: 28, textAlign: "center", paddingVertical: 10, fontSize: 7, color: COLORS.textMedium },
-  cellCodigo: { width: 55, textAlign: "center", paddingVertical: 10, fontSize: 7, color: COLORS.textDark },
-  cellDesc: { flex: 1, paddingLeft: 5, paddingVertical: 10, fontSize: 7, color: COLORS.textDark },
-  cellCant: { width: 35, textAlign: "center", paddingVertical: 10, fontSize: 7, color: COLORS.textDark },
-  cellUnid: { width: 35, textAlign: "center", paddingVertical: 10, fontSize: 7, color: COLORS.textMedium },
-  cellPrecio: { width: 55, textAlign: "right", paddingRight: 5, paddingVertical: 10, fontSize: 7, color: COLORS.textDark },
-  cellImporte: { width: 60, textAlign: "right", paddingRight: 5, paddingVertical: 10, fontSize: 7, fontWeight: "bold", color: COLORS.textDark },
+  colItem: { width: 28, textAlign: "center", paddingVertical: 8, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
+  colCodigo: { width: 55, textAlign: "center", paddingVertical: 8, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
+  colDesc: { flex: 1, paddingLeft: 5, paddingVertical: 8, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
+  colCant: { width: 35, textAlign: "center", paddingVertical: 8, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
+  colUnid: { width: 35, textAlign: "center", paddingVertical: 8, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
+  colPrecio: { width: 55, textAlign: "right", paddingRight: 5, paddingVertical: 8, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
+  colImporte: { width: 60, textAlign: "right", paddingRight: 5, paddingVertical: 8, fontSize: 7, color: COLORS.white, fontWeight: "bold" },
+  cellItem: { width: 28, textAlign: "center", paddingVertical: 6, fontSize: 7, color: COLORS.textMedium },
+  cellCodigo: { width: 55, textAlign: "center", paddingVertical: 6, fontSize: 7, color: COLORS.textDark },
+  cellDesc: { flex: 1, paddingLeft: 5, paddingVertical: 6, fontSize: 7, color: COLORS.textDark },
+  cellCant: { width: 35, textAlign: "center", paddingVertical: 6, fontSize: 7, color: COLORS.textDark },
+  cellUnid: { width: 35, textAlign: "center", paddingVertical: 6, fontSize: 7, color: COLORS.textMedium },
+  cellPrecio: { width: 55, textAlign: "right", paddingRight: 5, paddingVertical: 6, fontSize: 7, color: COLORS.textDark },
+  cellImporte: { width: 60, textAlign: "right", paddingRight: 5, paddingVertical: 6, fontSize: 7, fontWeight: "bold", color: COLORS.textDark },
   observacionesSection: { padding: 8, borderWidth: 1, borderColor: COLORS.border, borderRadius: 4, marginBottom: 8 },
   observacionesTitulo: { fontSize: 8, fontWeight: "bold", color: COLORS.primary, marginBottom: 4, textTransform: "uppercase" },
   observacionLine: { fontSize: 7, color: COLORS.textMedium, marginBottom: 2, paddingLeft: 6 },
@@ -81,21 +82,89 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 6, color: COLORS.textLight, textAlign: "center", marginBottom: 1 },
 });
 
-interface NotaVentaPDFProps {
-  id: number;
-  cliente: { nombre: string; ruc: string; direccion: string; telefono: string };
-  items: Array<{ item: number; codigo: string; cantidad: number; unidad: string; descripcion: string; precioVenta: number; importe: number }>;
-  fechaEmision: string;
-  horaEmision: string;
-  totalNeto: number;
+export interface NotaVentaPDFProps {
+  datos?: NotaVentaHistorial;
+  id?: number;
+  cliente?: { nombre?: string; ruc?: string; dni?: string; direccion?: string; telefono?: string };
+  items?: Array<{
+    item?: number;
+    codigo?: string;
+    sku?: string;
+    cantidad?: number;
+    unidad?: string;
+    descripcion?: string;
+    nombre?: string;
+    precioVenta?: number;
+    precioUnitario?: number;
+    importe?: number;
+    subtotal?: number;
+  }>;
+  fechaEmision?: string;
+  horaEmision?: string;
+  totalNeto?: number;
 }
 
-export default function NotaVentaPDF({ id, cliente, items, fechaEmision, horaEmision, totalNeto }: NotaVentaPDFProps) {
+export default function NotaVentaPDF(props: NotaVentaPDFProps) {
+  const numDoc = props.datos?.numeroDocumento || props.datos?.numero || (props.id ? `NV-000${props.id}` : "NV-0000");
+
+  const clienteNombre =
+    props.datos?.clienteNombre ||
+    props.datos?.cliente?.nombre ||
+    props.datos?.cliente?.razonSocial ||
+    props.cliente?.nombre ||
+    "Cliente General";
+
+  // 🟢 Extracción extendida para RUC/DNI
+  const clienteRuc =
+    props.datos?.clienteDocumento ||
+    props.datos?.cliente?.numeroDocumento ||
+    props.datos?.cliente?.ruc ||
+    props.datos?.cliente?.dni ||
+    props.cliente?.ruc ||
+    props.cliente?.dni ||
+    "—";
+
+  const clienteDireccion = props.cliente?.direccion || "—";
+  const clienteTelefono = props.cliente?.telefono || "—";
+
+  const fechaFormatted = props.datos?.fechaEmision
+    ? new Date(props.datos.fechaEmision).toLocaleDateString("es-PE")
+    : props.fechaEmision || "—";
+
+  const horaFormatted = props.datos?.fechaEmision
+    ? new Date(props.datos.fechaEmision).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })
+    : props.horaEmision || "";
+
+  const totalCalculado = Number(props.datos?.total ?? props.totalNeto ?? 0);
+
+  // 🟢 Normalización defensiva para evitar fallos en ofertas libres
+  const itemsNormalizados = (props.datos?.detalles || props.items || []).map((d: any, index: number) => {
+    const codigo = d.sku || d.codigo || d.producto?.codigoSku || "OFERTA";
+    const descripcion = d.descripcion || d.nombre || d.producto?.nombre || "Producto en Oferta Libre";
+    const cantidad = Number(d.cantidad || 1);
+    const unidad = d.unidad || d.unidadMedida || "UND";
+    const precioUnitario = Number(d.precioUnitario ?? d.precioVenta ?? d.precio ?? 0);
+    const importe = Number(d.subtotal ?? d.importe ?? precioUnitario * cantidad);
+
+    return {
+      item: index + 1,
+      codigo,
+      cantidad,
+      unidad,
+      descripcion,
+      precioVenta: precioUnitario,
+      importe,
+    };
+  });
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* Cabecera */}
         <View style={styles.headerContainer}>
-          <View style={styles.logoSection}><Image src="/images/logo_empresa.jpg" style={styles.logo} /></View>
+          <View style={styles.logoSection}>
+            <Image src="/images/logo_empresa.jpg" style={styles.logo} />
+          </View>
           <View style={styles.empresaSection}>
             <Text style={styles.empresaNombre}>CAR IMPORT RAMOS & HUAMAN S.A.C.</Text>
             <Text style={styles.empresaRuc}>RUC 20123456789</Text>
@@ -105,45 +174,87 @@ export default function NotaVentaPDF({ id, cliente, items, fechaEmision, horaEmi
           </View>
           <View style={styles.docSection}>
             <Text style={styles.docLabel}>NOTA DE VENTA</Text>
-            <Text style={styles.docNumero}>NV-000{id}</Text>
-            <Text style={styles.docFecha}>{fechaEmision} - {horaEmision}</Text>
+            <Text style={styles.docNumero}>{numDoc}</Text>
+            <Text style={styles.docFecha}>{fechaFormatted} {horaFormatted ? `- ${horaFormatted}` : ""}</Text>
           </View>
         </View>
 
+        {/* Cliente e Información */}
         <View style={styles.clienteContainer}>
           <View style={styles.clienteBox}>
-            <View style={styles.clienteHeader}><Text style={styles.clienteHeaderText}>Datos del Cliente</Text></View>
+            <View style={styles.clienteHeader}>
+              <Text style={styles.clienteHeaderText}>Datos del Cliente</Text>
+            </View>
             <View style={styles.clienteBody}>
-              <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>Cliente:</Text><Text style={styles.clienteFieldValue}>{cliente.nombre}</Text></View>
-              <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>RUC/DNI:</Text><Text style={styles.clienteFieldValue}>{cliente.ruc}</Text></View>
-              <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>Dirección:</Text><Text style={styles.clienteFieldValue}>{cliente.direccion}</Text></View>
-              <View style={styles.clienteField}><Text style={styles.clienteFieldLabel}>Teléfono:</Text><Text style={styles.clienteFieldValue}>{cliente.telefono}</Text></View>
+              <View style={styles.clienteField}>
+                <Text style={styles.clienteFieldLabel}>Cliente:</Text>
+                <Text style={styles.clienteFieldValue}>{clienteNombre}</Text>
+              </View>
+              <View style={styles.clienteField}>
+                <Text style={styles.clienteFieldLabel}>RUC/DNI:</Text>
+                <Text style={styles.clienteFieldValue}>{clienteRuc}</Text>
+              </View>
+              <View style={styles.clienteField}>
+                <Text style={styles.clienteFieldLabel}>Dirección:</Text>
+                <Text style={styles.clienteFieldValue}>{clienteDireccion}</Text>
+              </View>
+              <View style={styles.clienteField}>
+                <Text style={styles.clienteFieldLabel}>Teléfono:</Text>
+                <Text style={styles.clienteFieldValue}>{clienteTelefono}</Text>
+              </View>
             </View>
           </View>
+
           <View style={styles.infoBox}>
-            <View style={styles.infoHeader}><Text style={styles.infoHeaderText}>Información</Text></View>
+            <View style={styles.infoHeader}>
+              <Text style={styles.infoHeaderText}>Información</Text>
+            </View>
             <View style={styles.infoBody}>
-              <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Fecha:</Text><Text style={styles.infoFieldValue}>{fechaEmision}</Text></View>
-              <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Moneda:</Text><Text style={styles.infoFieldValue}>SOLES</Text></View>
-              <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Condición:</Text><Text style={styles.infoFieldValue}>CONTADO</Text></View>
-              <View style={styles.infoField}><Text style={styles.infoFieldLabel}>Vigencia:</Text><Text style={[styles.infoFieldValue, { color: COLORS.success, fontWeight: "bold" }]}>Inmediata</Text></View>
+              <View style={styles.infoField}>
+                <Text style={styles.infoFieldLabel}>Fecha:</Text>
+                <Text style={styles.infoFieldValue}>{fechaFormatted}</Text>
+              </View>
+              <View style={styles.infoField}>
+                <Text style={styles.infoFieldLabel}>Moneda:</Text>
+                <Text style={styles.infoFieldValue}>SOLES</Text>
+              </View>
+              <View style={styles.infoField}>
+                <Text style={styles.infoFieldLabel}>Condición:</Text>
+                <Text style={styles.infoFieldValue}>CONTADO</Text>
+              </View>
+              <View style={styles.infoField}>
+                <Text style={styles.infoFieldLabel}>Vigencia:</Text>
+                <Text style={[styles.infoFieldValue, { color: COLORS.success, fontWeight: "bold" }]}>Inmediata</Text>
+              </View>
             </View>
           </View>
         </View>
 
+        {/* Tabla de Productos */}
         <View style={styles.tableContainer}>
           <View style={styles.tableHeader}>
-            <Text style={styles.colItem}>ITEM</Text><Text style={styles.colCodigo}>CÓDIGO</Text><Text style={styles.colDesc}>DESCRIPCIÓN</Text>
-            <Text style={styles.colCant}>CANT</Text><Text style={styles.colUnid}>UND</Text><Text style={styles.colPrecio}>P.UNIT</Text><Text style={styles.colImporte}>IMPORTE</Text>
+            <Text style={styles.colItem}>ITEM</Text>
+            <Text style={styles.colCodigo}>CÓDIGO</Text>
+            <Text style={styles.colDesc}>DESCRIPCIÓN</Text>
+            <Text style={styles.colCant}>CANT</Text>
+            <Text style={styles.colUnid}>UND</Text>
+            <Text style={styles.colPrecio}>P.UNIT</Text>
+            <Text style={styles.colImporte}>IMPORTE</Text>
           </View>
-          {items.map((item, i) => (
+          {itemsNormalizados.map((fila, i) => (
             <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlternate : {}]} wrap={false}>
-              <Text style={styles.cellItem}>{item.item}</Text><Text style={styles.cellCodigo}>{item.codigo}</Text><Text style={styles.cellDesc}>{item.descripcion}</Text>
-              <Text style={styles.cellCant}>{item.cantidad}</Text><Text style={styles.cellUnid}>{item.unidad}</Text><Text style={styles.cellPrecio}>{item.precioVenta.toFixed(2)}</Text><Text style={styles.cellImporte}>{item.importe.toFixed(2)}</Text>
+              <Text style={styles.cellItem}>{fila.item}</Text>
+              <Text style={styles.cellCodigo}>{fila.codigo}</Text>
+              <Text style={styles.cellDesc}>{fila.descripcion}</Text>
+              <Text style={styles.cellCant}>{fila.cantidad}</Text>
+              <Text style={styles.cellUnid}>{fila.unidad}</Text>
+              <Text style={styles.cellPrecio}>{fila.precioVenta.toFixed(2)}</Text>
+              <Text style={styles.cellImporte}>{fila.importe.toFixed(2)}</Text>
             </View>
           ))}
         </View>
 
+        {/* Observaciones */}
         <View style={styles.observacionesSection}>
           <Text style={styles.observacionesTitulo}>Observaciones</Text>
           <Text style={styles.observacionLine}>• Precios incluyen IGV.</Text>
@@ -151,6 +262,7 @@ export default function NotaVentaPDF({ id, cliente, items, fechaEmision, horaEmi
           <Text style={styles.observacionLine}>• Documento válido como comprobante de pago.</Text>
         </View>
 
+        {/* Cuentas y Totales */}
         <View style={styles.bottomRow}>
           <View style={styles.cuentasSection}>
             <Text style={styles.cuentasTitulo}>Cuentas Bancarias</Text>
@@ -165,10 +277,11 @@ export default function NotaVentaPDF({ id, cliente, items, fechaEmision, horaEmi
           </View>
           <View style={styles.totalSection}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>S/ {totalNeto.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>S/ {totalCalculado.toFixed(2)}</Text>
           </View>
         </View>
 
+        {/* Pie de Página */}
         <View style={styles.footerFixed} fixed>
           <Text style={styles.footerText}>Gracias por su compra.</Text>
           <Text style={styles.footerText}>Documento válido como comprobante de pago.</Text>

@@ -1,5 +1,6 @@
 "use client";
-import React, { createContext, useContext, useState } from "react";
+
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 interface AuthUser {
   username: string;
@@ -14,23 +15,42 @@ interface AuthContextType {
   isLoading: boolean;
 }
 
-const AuthContext = createContext<AuthContextType>(null!);
+// 1. Estado inicial por defecto por si se invoca antes de tiempo
+const defaultContextValue: AuthContextType = {
+  user: null,
+  token: null,
+  login: () => {},
+  logout: () => {},
+  isLoading: true,
+};
 
-function getStoredAuth() {
-  if (typeof window === "undefined") {
-    return { token: null, user: null };
-  }
-  const token = localStorage.getItem("token");
-  const user = localStorage.getItem("user");
-  return {
-    token,
-    user: user ? JSON.parse(user) : null,
-  };
-}
+const AuthContext = createContext<AuthContextType>(defaultContextValue);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [auth, setAuth] = useState(getStoredAuth);
-  const [isLoading] = useState(false);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [auth, setAuth] = useState<{ token: string | null; user: AuthUser | null }>({
+    token: null,
+    user: null,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Evitamos el warning del linter posponiendo la carga al microtask
+    queueMicrotask(() => {
+      try {
+        const token = localStorage.getItem("token");
+        const userStr = localStorage.getItem("user");
+        const user = userStr ? JSON.parse(userStr) : null;
+
+        if (token && user) {
+          setAuth({ token, user });
+        }
+      } catch (e) {
+        console.error("Error al cargar sesión de localStorage", e);
+      } finally {
+        setIsLoading(false);
+      }
+    });
+  }, []);
 
   const login = (token: string, user: AuthUser) => {
     localStorage.setItem("token", token);
@@ -57,6 +77,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => useContext(AuthContext);
+// 2. Retornamos defaultContextValue en lugar de null si algo falla en la jerarquía
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  return context || defaultContextValue;
+};

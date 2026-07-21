@@ -1,29 +1,24 @@
+// components/ProtectedRoute.tsx
 "use client";
 
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext"; // 👈 Asegúrate de que apunte a context y no a hooks
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export default function ProtectedRoute({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && !user) {
-      router.replace("/login");
+      router.push("/login");
     }
-  }, [user, isLoading, router]);
+  }, [isLoading, user, router]);
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="animate-pulse text-slate-500">
-          Cargando...
-        </p>
+      <div className="flex h-screen w-full items-center justify-center">
+        <span>Cargando...</span>
       </div>
     );
   }

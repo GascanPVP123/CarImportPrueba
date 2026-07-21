@@ -1,62 +1,71 @@
 "use client";
 
-import { CotizacionPDFProps } from "@/types/cotizacion";
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Download, Loader2 } from "lucide-react";
+import type { DocumentProps } from "@react-pdf/renderer";
 
 interface DescargarPDFButtonProps {
-  cotizacionId: number;
-  cliente: CotizacionPDFProps["cliente"];
-  cabecera: CotizacionPDFProps["cabecera"];
-  items: CotizacionPDFProps["items"];
-  fechaEmision: string;
-  horaEmision: string;
-  fileName: string;
+  documento: React.ReactElement<DocumentProps>;
+  nombreArchivo?: string;
+  fileName?: string; // Para mantener compatibilidad con usos anteriores
+  className?: string;
+  children?: React.ReactNode;
 }
 
-export function DescargarPDFButton({
-  cotizacionId,
-  cliente,
-  cabecera,
-  items,
-  fechaEmision,
-  horaEmision,
+export default function DescargarPDFButton({
+  documento,
+  nombreArchivo,
   fileName,
+  className,
+  children,
 }: DescargarPDFButtonProps) {
+  const [generando, setGenerando] = useState(false);
+
+  const finalFileName = nombreArchivo || fileName || "documento.pdf";
+
   const handleClick = async () => {
     try {
+      setGenerando(true);
+
+      // Carga dinámica de @react-pdf/renderer solo en el cliente
       const { pdf } = await import("@react-pdf/renderer");
-      const { default: CotizacionPDF } = await import("@/components/cotizacion/CotizacionPDF");
 
-      const blob = await pdf(
-        CotizacionPDF({
-          id: cotizacionId,
-          cliente,
-          cabecera,
-          items,
-          fechaEmision,
-          horaEmision,
-        })
-      ).toBlob();
+      // Generamos el blob del documento recibido
+      const blob = await pdf(documento).toBlob();
 
+      // Forzamos la descarga en el navegador
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
+      link.download = finalFileName;
       document.body.appendChild(link);
-      link.download = fileName;
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error(err);
-      alert("Error al generar el PDF");
+      console.error("Error al generar el PDF:", err);
+      alert("Error al generar el documento PDF");
+    } finally {
+      setGenerando(false);
     }
   };
 
   return (
-    <button
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
       onClick={handleClick}
-      className="bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-lg hover:bg-emerald-700 transition shadow-sm"
+      disabled={generando}
+      className={className}
     >
-      📥 Descargar PDF Oficial
-    </button>
+      {generando ? (
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      ) : (
+        <Download className="mr-2 h-4 w-4" />
+      )}
+      {children || "PDF"}
+    </Button>
   );
 }

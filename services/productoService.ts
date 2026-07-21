@@ -1,25 +1,19 @@
 import { apiRequest } from "./api";
+import { Importadora } from "./importadoraService";
 
 export interface Producto {
   id?: number;
   codigoSku: string;
   nombre: string;
   descripcion?: string;
-  precioCompra: number;
-  precioVenta: number;
   stock: number;
-  stockMinimo: number;
+  precioMenor: number;
+  precioMayor?: number;
+  precioVenta?: number; // Para retrocompatibilidad
   unidadMedida?: string;
-  importadora?: {
-    id: number;
-    razonSocial: string;
-  } | null;
-  proveedor?: {
-    id: number;
-    nombreEmpresa: string;
-  } | null;
+  importadora?: Importadora | null;
+  importadoraId?: number | null;
 }
-
 export const productoService = {
   
   listar: () => apiRequest<Producto[]>("/productos", { method: "GET" }),

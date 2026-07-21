@@ -2,7 +2,8 @@
 
 import { X, FileText, CheckCircle } from "lucide-react";
 import { CotizacionItem, ClienteData, FacturaCabecera } from "@/types/cotizacion";
-import { DescargarPDFButton } from "@/components/cotizacion/DescargarPDFButton";
+import DescargarPDFButton from "@/components/cotizacion/DescargarPDFButton";
+import CotizacionPDF from "@/components/cotizacion/CotizacionPDF";
 import  NotaVentaPDF  from "@/components/cotizacion/NotaVentaPDF";
 import { notaVentaService } from "@/services/notaVentaService";
 import { useState } from "react";
@@ -66,7 +67,6 @@ export function ModalConfirmacion({
       <NotaVentaPDF
         id={notaVentaId}
         cliente={cliente}
-        items={items}
         fechaEmision={cabecera.fechaEmision}
         horaEmision={horaEmision}
         totalNeto={totalNeto}
@@ -102,14 +102,20 @@ export function ModalConfirmacion({
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm font-semibold text-blue-900 mb-2">📄 Cotización (No descuenta stock)</p>
               <DescargarPDFButton
-                cotizacionId={cotizacionId}
-                cliente={cliente}
-                cabecera={cabecera}
-                items={items}
-                fechaEmision={cabecera.fechaEmision}
-                horaEmision={horaEmision}
-                fileName={`Cotizacion_${cotizacionId}.pdf`}
-              />
+                documento={
+                  <CotizacionPDF
+                    id={cotizacionId}
+                    cliente={cliente}
+                    cabecera={cabecera}
+                    items={items}
+                    fechaEmision={cabecera.fechaEmision}
+                    horaEmision={horaEmision}
+                  />
+                }
+                nombreArchivo={`Cotizacion_${cotizacionId}.pdf`}
+              >
+                📥 Descargar PDF Oficial
+            </DescargarPDFButton>
             </div>
 
             {/* Botón 2: Convertir a Nota de Venta */}
