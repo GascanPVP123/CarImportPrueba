@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { 
   Plus, 
   Search, 
@@ -41,11 +41,13 @@ export default function ProductosPage() {
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const [productoEditar, setProductoEditar] = useState<Producto | null>(null);
 
+  // Cargar productos al montar
   useEffect(() => {
     let ignore = false;
 
-    const ejecutarCarga = async () => {
+    const cargarProductos = async () => {
       try {
+        setLoading(true);
         const data = await productoService.listar();
         if (!ignore) {
           setProductos(data);
@@ -62,14 +64,15 @@ export default function ProductosPage() {
       }
     };
 
-    ejecutarCarga();
+    cargarProductos();
 
     return () => {
       ignore = true;
     };
   }, []);
 
-  const handleRecargar = async () => {
+  // Recargar productos manualmente
+  const handleRecargar = useCallback(async () => {
     setLoading(true);
     try {
       const data = await productoService.listar();
@@ -80,19 +83,22 @@ export default function ProductosPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleNuevoProducto = () => {
+  // Abrir modal para nuevo producto
+  const handleNuevoProducto = useCallback(() => {
     setProductoEditar(null);
     setModalOpen(true);
-  };
+  }, []);
 
-  const handleEditarProducto = (prod: Producto) => {
+  // Abrir modal para editar producto
+  const handleEditarProducto = useCallback((prod: Producto) => {
     setProductoEditar(prod);
     setModalOpen(true);
-  };
+  }, []);
 
-  const handleEliminarProducto = async (id?: number) => {
+  // Eliminar producto
+  const handleEliminarProducto = useCallback(async (id?: number) => {
     if (!id) return;
     if (!confirm("¿Estás seguro de que deseas eliminar este producto?")) return;
 
@@ -102,25 +108,38 @@ export default function ProductosPage() {
     } catch (err: unknown) {
       alert(`Error al eliminar: ${err instanceof Error ? err.message : "Error desconocido"}`);
     }
-  };
+  }, []);
 
-  const handleGuardarProducto = async (productoForm: Producto) => {
-    if (productoForm.id) {
-      const actualizado = await productoService.actualizar(productoForm.id, productoForm);
-      setProductos((prev) =>
-        prev.map((p) => (p.id === actualizado.id ? actualizado : p))
-      );
-    } else {
-      const nuevo = await productoService.guardar(productoForm);
-      setProductos((prev) => [...prev, nuevo]);
+  // Guardar o actualizar producto
+  const handleGuardarProducto = useCallback(async (productoForm: Producto) => {
+    try {
+      if (productoForm.id) {
+        const actualizado = await productoService.actualizar(productoForm.id, productoForm);
+        setProductos((prev) =>
+          prev.map((p) => (p.id === actualizado.id ? actualizado : p))
+        );
+      } else {
+        const nuevo = await productoService.guardar(productoForm);
+        setProductos((prev) => [...prev, nuevo]);
+      }
+    } catch (err: unknown) {
+      console.error("Error al guardar producto:", err);
+      throw err;
     }
-    await handleRecargar();
-  };
+  }, []);
 
-  // 🟢 FILTRADO
+  // Cerrar modal
+  const handleCerrarModal = useCallback(() => {
+    setModalOpen(false);
+    setProductoEditar(null);
+  }, []);
+
+  // Filtrado
   const productosFiltrados = useMemo(() => {
+    if (!busqueda.trim()) return productos;
+    
+    const termino = busqueda.toLowerCase().trim();
     return productos.filter((p) => {
-      const termino = busqueda.toLowerCase().trim();
       const skuMatch = p.codigoSku?.toLowerCase().includes(termino) ?? false;
       const nombreMatch = p.nombre.toLowerCase().includes(termino);
       const impMatch = p.importadora?.razonSocial?.toLowerCase().includes(termino) ?? false;
@@ -128,7 +147,7 @@ export default function ProductosPage() {
     });
   }, [productos, busqueda]);
 
-  // 🟢 CÁLCULO DE KPIS
+  // Cálculo de KPIs
   const kpis = useMemo(() => {
     const totalProductos = productos.length;
     const stockTotal = productos.reduce((acc, p) => acc + (p.stock || 0), 0);
@@ -141,7 +160,7 @@ export default function ProductosPage() {
     return { totalProductos, stockTotal, bajoStock, valorizacionTotal };
   }, [productos]);
 
-  // 🟢 DATOS PARA GRÁFICO POR IMPORTADORA
+  // Datos para gráfico por importadora
   const datosGraficoImportadora = useMemo(() => {
     const mapa: Record<string, number> = {};
 
@@ -156,7 +175,7 @@ export default function ProductosPage() {
     }));
   }, [productos]);
 
-  // 🟢 DATOS PARA GRÁFICO DE STOCK CRÍTICO (TOP 5)
+  // Datos para gráfico de stock bajo (Top 5)
   const datosGraficoStockBajo = useMemo(() => {
     return [...productos]
       .sort((a, b) => (a.stock || 0) - (b.stock || 0))
@@ -190,115 +209,79 @@ export default function ProductosPage() {
         </button>
       </div>
 
-      {/* 🟢 TARJETAS KPI (METRICAS) */}
+      {/* TARJETAS KPI */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Total Productos</p>
-            <h3 className="text-2xl font-bold text-slate-900">{kpis.totalProductos}</h3>
-          </div>
-          <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
-            <Package className="h-6 w-6" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Stock Acumulado</p>
-            <h3 className="text-2xl font-bold text-slate-900">{kpis.stockTotal} <span className="text-xs font-normal text-slate-500">und.</span></h3>
-          </div>
-          <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
-            <Boxes className="h-6 w-6" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500">En Alerta (Stock ≤ 5)</p>
-            <h3 className="text-2xl font-bold text-amber-600">{kpis.bajoStock}</h3>
-          </div>
-          <div className="p-3 bg-amber-50 rounded-lg text-amber-600">
-            <AlertTriangle className="h-6 w-6" />
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Valorización Estimada</p>
-            <h3 className="text-xl font-bold text-slate-900">S/ {kpis.valorizacionTotal.toFixed(2)}</h3>
-          </div>
-          <div className="p-3 bg-slate-100 rounded-lg text-slate-700">
-            <DollarSign className="h-6 w-6" />
-          </div>
-        </div>
-
+        <KPICard
+          titulo="Total Productos"
+          valor={kpis.totalProductos}
+          icono={<Package className="h-6 w-6" />}
+          color="emerald"
+        />
+        <KPICard
+          titulo="Stock Acumulado"
+          valor={`${kpis.stockTotal} und.`}
+          icono={<Boxes className="h-6 w-6" />}
+          color="blue"
+        />
+        <KPICard
+          titulo="En Alerta (Stock ≤ 5)"
+          valor={kpis.bajoStock}
+          icono={<AlertTriangle className="h-6 w-6" />}
+          color="amber"
+          valorColor="text-amber-600"
+        />
+        <KPICard
+          titulo="Valorización Estimada"
+          valor={`S/ ${kpis.valorizacionTotal.toFixed(2)}`}
+          icono={<DollarSign className="h-6 w-6" />}
+          color="slate"
+        />
       </div>
 
-      {/* 🟢 SECCIÓN DE GRÁFICOS */}
+      {/* GRÁFICOS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* GRÁFICO 1: DISTRIBUCIÓN POR IMPORTADORA */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-emerald-600" />
-            Distribución por Importadora
-          </h4>
-          <div className="h-60 w-full">
-            {datosGraficoImportadora.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-slate-400 italic">
-                Sin datos de importadoras registrados
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={datosGraficoImportadora}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {datosGraficoImportadora.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORES_GRAFICO[index % COLORES_GRAFICO.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [`${value} productos`, "Cantidad"]} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
+        <GraficoCard titulo="Distribución por Importadora" icono={<Building2 className="h-4 w-4 text-emerald-600" />}>
+          {datosGraficoImportadora.length === 0 ? (
+            <EmptyChart mensaje="Sin datos de importadoras registrados" />
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={datosGraficoImportadora}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {datosGraficoImportadora.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORES_GRAFICO[index % COLORES_GRAFICO.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => [`${value} productos`, "Cantidad"]} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </GraficoCard>
 
-        {/* GRÁFICO 2: PRODUCTOS CON MENOR STOCK */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-            Top 5 Productos con Menor Stock
-          </h4>
-          <div className="h-60 w-full">
-            {datosGraficoStockBajo.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-slate-400 italic">
-                Sin productos en catálogo
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={datosGraficoStockBajo} layout="vertical">
-                  <XAxis type="number" />
-                  <YAxis dataKey="nombre" type="category" width={110} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(value) => [`${value} unidades`, "Stock"]} />
-                  <Bar dataKey="stock" fill="#F59E0B" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
+        <GraficoCard titulo="Top 5 Productos con Menor Stock" icono={<AlertTriangle className="h-4 w-4 text-amber-500" />}>
+          {datosGraficoStockBajo.length === 0 ? (
+            <EmptyChart mensaje="Sin productos en catálogo" />
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={datosGraficoStockBajo} layout="vertical">
+                <XAxis type="number" />
+                <YAxis dataKey="nombre" type="category" width={110} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(value) => [`${value} unidades`, "Stock"]} />
+                <Bar dataKey="stock" fill="#F59E0B" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </GraficoCard>
       </div>
 
-      {/* BARRA DE BÚSQUEDA Y HERRAMIENTAS */}
+      {/* BARRA DE BÚSQUEDA */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -313,9 +296,11 @@ export default function ProductosPage() {
 
         <button
           onClick={handleRecargar}
-          className="flex items-center gap-2 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg transition"
+          disabled={loading}
+          className="flex items-center gap-2 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg transition disabled:opacity-50"
         >
-          <RefreshCw className="h-3.5 w-3.5" /> Recargar
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> 
+          Recargar
         </button>
       </div>
 
@@ -338,6 +323,7 @@ export default function ProductosPage() {
                 <th className="py-3 px-4 text-left">Importadora</th>
                 <th className="py-3 px-4 text-center">Und.</th>
                 <th className="py-3 px-4 text-center">Stock</th>
+                <th className="py-3 px-4 text-center">P. Compra</th>
                 <th className="py-3 px-4 text-right">P. Menor (S/)</th>
                 <th className="py-3 px-4 text-right">P. Mayor (S/)</th>
                 <th className="py-3 px-4 text-center w-28">Acciones</th>
@@ -347,112 +333,203 @@ export default function ProductosPage() {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-gray-400 italic">
+                  <td colSpan={9} className="py-12 text-center text-gray-400 italic">
                     Cargando catálogo de productos...
                   </td>
                 </tr>
               ) : productosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-gray-400 italic">
+                  <td colSpan={9} className="py-12 text-center text-gray-400 italic">
                     {busqueda
                       ? "No se encontraron productos que coincidan con la búsqueda."
                       : "No hay productos registrados en el sistema."}
                   </td>
                 </tr>
               ) : (
-                productosFiltrados.map((p) => {
-                  const pMenor = p.precioMenor ?? p.precioVenta ?? 0;
-                  const pMayor = p.precioMayor ?? 0;
-
-                  return (
-                    <tr key={p.id} className="hover:bg-gray-50/70 transition">
-                      <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-700">
-                        {p.codigoSku || "—"}
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-slate-900">{p.nombre}</div>
-                        {p.descripcion && (
-                          <div className="text-xs text-slate-400 truncate max-w-xs">
-                            {p.descripcion}
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-4">
-                        {p.importadora?.razonSocial ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                            <Building2 className="h-3 w-3 text-slate-500" />
-                            {p.importadora.razonSocial}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400 italic">—</span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-4 text-center text-xs text-gray-500 uppercase">
-                        {p.unidadMedida || "unidad"}
-                      </td>
-
-                      <td className="py-3 px-4 text-center">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                            p.stock > 5
-                              ? "bg-emerald-100 text-emerald-800"
-                              : p.stock > 0
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {p.stock}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
-                        S/ {pMenor.toFixed(2)}
-                      </td>
-
-                      <td className="py-3 px-4 text-right font-mono font-semibold text-blue-700">
-                        {pMayor > 0 ? `S/ ${pMayor.toFixed(2)}` : "—"}
-                      </td>
-
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => handleEditarProducto(p)}
-                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                            title="Editar producto"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleEliminarProducto(p.id)}
-                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                            title="Eliminar producto"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+                productosFiltrados.map((p) => (
+                  <FilaProducto
+                    key={p.id}
+                    producto={p}
+                    onEditar={handleEditarProducto}
+                    onEliminar={handleEliminarProducto}
+                  />
+                ))
               )}
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* MODAL */}
       <ModalProducto
         key={productoEditar ? `edit-${productoEditar.id}` : "nuevo"}
         isOpen={modalOpen}
-        onClose={() => {
-          setModalOpen(false);
-          setProductoEditar(null);
-        }}
+        onClose={handleCerrarModal}
         onGuardar={handleGuardarProducto}
         productoEditar={productoEditar}
       />
     </div>
+  );
+}
+
+// ==================== COMPONENTES AUXILIARES ====================
+
+function KPICard({ 
+  titulo, 
+  valor, 
+  icono, 
+  color,
+  valorColor 
+}: { 
+  titulo: string; 
+  valor: string | number; 
+  icono: React.ReactNode; 
+  color: "emerald" | "blue" | "amber" | "slate";
+  valorColor?: string;
+}) {
+  const colores = {
+    emerald: "bg-emerald-50 text-emerald-600",
+    blue: "bg-blue-50 text-blue-600",
+    amber: "bg-amber-50 text-amber-600",
+    slate: "bg-slate-100 text-slate-700",
+  };
+
+  return (
+    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+      <div>
+        <p className="text-xs font-semibold text-slate-500">{titulo}</p>
+        <h3 className={`text-2xl font-bold ${valorColor || "text-slate-900"}`}>
+          {valor}
+        </h3>
+      </div>
+      <div className={`p-3 rounded-lg ${colores[color]}`}>
+        {icono}
+      </div>
+    </div>
+  );
+}
+
+function GraficoCard({ 
+  titulo, 
+  icono, 
+  children 
+}: { 
+  titulo: string; 
+  icono: React.ReactNode; 
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+      <h4 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
+        {icono}
+        {titulo}
+      </h4>
+      <div className="h-60 w-full">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function EmptyChart({ mensaje }: { mensaje: string }) {
+  return (
+    <div className="h-full flex items-center justify-center text-xs text-slate-400 italic">
+      {mensaje}
+    </div>
+  );
+}
+
+function FilaProducto({ 
+  producto, 
+  onEditar, 
+  onEliminar 
+}: { 
+  producto: Producto; 
+  onEditar: (prod: Producto) => void; 
+  onEliminar: (id?: number) => void;
+}) {
+  const pMenor = producto.precioMenor ?? producto.precioVenta ?? 0;
+  const pMayor = producto.precioMayor ?? 0;
+
+  return (
+    <tr className="hover:bg-gray-50/70 transition">
+      <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-700 uppercase">
+        {producto.codigoSku || "—"}
+      </td>
+
+      <td className="py-3 px-4">
+        <div className="font-medium text-slate-900">{producto.nombre}</div>
+        {producto.descripcion && (
+          <div className="text-xs text-slate-400 truncate max-w-xs">
+            {producto.descripcion}
+          </div>
+        )}
+      </td>
+
+      <td className="py-3 px-4">
+        {producto.importadora?.razonSocial ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+            <Building2 className="h-3 w-3 text-slate-500" />
+            {producto.importadora.razonSocial}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400 italic">—</span>
+        )}
+      </td>
+
+      <td className="py-3 px-4 text-center text-xs text-gray-500 uppercase">
+        {producto.unidadMedida || "unidad"}
+      </td>
+
+      <td className="py-3 px-4 text-center">
+        <StockBadge stock={producto.stock} />
+      </td>
+
+      <td className="py-3 px-4 text-center font-medium text-slate-700">
+        S/ {Number(producto.precioCompra || 0).toFixed(2)}
+      </td>
+
+      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
+        S/ {pMenor.toFixed(2)}
+      </td>
+
+      <td className="py-3 px-4 text-right font-mono font-semibold text-blue-700">
+        {pMayor > 0 ? `S/ ${pMayor.toFixed(2)}` : "—"}
+      </td>
+
+      <td className="py-3 px-4 text-center">
+        <div className="flex items-center justify-center gap-1">
+          <button
+            onClick={() => onEditar(producto)}
+            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+            title="Editar producto"
+          >
+            <Edit2 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => onEliminar(producto.id)}
+            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+            title="Eliminar producto"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function StockBadge({ stock }: { stock: number }) {
+  const estilos = 
+    stock > 5
+      ? "bg-emerald-100 text-emerald-800"
+      : stock > 0
+      ? "bg-amber-100 text-amber-800"
+      : "bg-red-100 text-red-800";
+
+  return (
+    <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${estilos}`}>
+      {stock}
+    </span>
   );
 }

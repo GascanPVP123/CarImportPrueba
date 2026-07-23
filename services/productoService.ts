@@ -6,6 +6,7 @@ export interface Producto {
   codigoSku: string;
   nombre: string;
   descripcion?: string;
+  precioCompra?: number; // 🟢 Agregado para el costo del producto
   stock: number;
   precioMenor: number;
   precioMayor?: number;
@@ -14,6 +15,7 @@ export interface Producto {
   importadora?: Importadora | null;
   importadoraId?: number | null;
 }
+
 export const productoService = {
   
   listar: () => apiRequest<Producto[]>("/productos", { method: "GET" }),

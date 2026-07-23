@@ -82,23 +82,28 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 6, color: COLORS.textLight, textAlign: "center", marginBottom: 1 },
 });
 
+// 🛡️ Interfaz de elemento flexible (Reemplaza a 'any')
+interface ItemFlex {
+  sku?: string;
+  codigo?: string;
+  producto?: { codigoSku?: string; nombre?: string };
+  descripcion?: string;
+  nombre?: string;
+  cantidad?: number;
+  unidad?: string;
+  unidadMedida?: string;
+  precioUnitario?: number;
+  precioVenta?: number;
+  precio?: number;
+  subtotal?: number;
+  importe?: number;
+}
+
 export interface NotaVentaPDFProps {
   datos?: NotaVentaHistorial;
   id?: number;
   cliente?: { nombre?: string; ruc?: string; dni?: string; direccion?: string; telefono?: string };
-  items?: Array<{
-    item?: number;
-    codigo?: string;
-    sku?: string;
-    cantidad?: number;
-    unidad?: string;
-    descripcion?: string;
-    nombre?: string;
-    precioVenta?: number;
-    precioUnitario?: number;
-    importe?: number;
-    subtotal?: number;
-  }>;
+  items?: ItemFlex[];
   fechaEmision?: string;
   horaEmision?: string;
   totalNeto?: number;
@@ -107,19 +112,23 @@ export interface NotaVentaPDFProps {
 export default function NotaVentaPDF(props: NotaVentaPDFProps) {
   const numDoc = props.datos?.numeroDocumento || props.datos?.numero || (props.id ? `NV-000${props.id}` : "NV-0000");
 
+  // 🛡️ Casting seguro solucionando ts(2532)
+  const clienteDatos = props.datos?.cliente as
+    | (NonNullable<NonNullable<typeof props.datos>["cliente"]> & { razonSocial?: string; dni?: string })
+    | undefined;
+
   const clienteNombre =
     props.datos?.clienteNombre ||
-    props.datos?.cliente?.nombre ||
-    props.datos?.cliente?.razonSocial ||
+    clienteDatos?.nombre ||
+    clienteDatos?.razonSocial ||
     props.cliente?.nombre ||
     "Cliente General";
 
-  // 🟢 Extracción extendida para RUC/DNI
   const clienteRuc =
     props.datos?.clienteDocumento ||
-    props.datos?.cliente?.numeroDocumento ||
-    props.datos?.cliente?.ruc ||
-    props.datos?.cliente?.dni ||
+    clienteDatos?.numeroDocumento ||
+    clienteDatos?.ruc ||
+    clienteDatos?.dni ||
     props.cliente?.ruc ||
     props.cliente?.dni ||
     "—";
@@ -137,8 +146,10 @@ export default function NotaVentaPDF(props: NotaVentaPDFProps) {
 
   const totalCalculado = Number(props.datos?.total ?? props.totalNeto ?? 0);
 
-  // 🟢 Normalización defensiva para evitar fallos en ofertas libres
-  const itemsNormalizados = (props.datos?.detalles || props.items || []).map((d: any, index: number) => {
+  // 🟢 Tipado seguro para la iteración de productos
+  const listaRaw = (props.datos?.detalles || props.items || []) as ItemFlex[];
+
+  const itemsNormalizados = listaRaw.map((d, index) => {
     const codigo = d.sku || d.codigo || d.producto?.codigoSku || "OFERTA";
     const descripcion = d.descripcion || d.nombre || d.producto?.nombre || "Producto en Oferta Libre";
     const cantidad = Number(d.cantidad || 1);
@@ -156,6 +167,7 @@ export default function NotaVentaPDF(props: NotaVentaPDFProps) {
       importe,
     };
   });
+
 
   return (
     <Document>
