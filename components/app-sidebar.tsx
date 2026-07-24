@@ -6,11 +6,9 @@ import {
   Package,
   FileText,
   ShoppingCart,
-  Receipt,
-  Users,
   BarChart3,
-  Settings,
   LogOut,
+  Truck,
 } from "lucide-react";
 
 import Link from "next/link";
@@ -49,8 +47,9 @@ const data = {
       ],
     },
     {
-      title: "Inventario",
+      title: "Operaciones",
       items: [
+        { title: "Consignaciones", url: "/dashboard/consignaciones", icon: Truck },
         { title: "Productos", url: "/dashboard/productos", icon: Package },
       ],
     },
