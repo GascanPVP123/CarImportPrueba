@@ -84,14 +84,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </div>
             </div>
           </SidebarMenuItem>
+          
         </SidebarMenu>
-      </SidebarHeader>
+      </SidebarHeader>   
 
       {/* Menú */}
       <SidebarContent className="bg-slate-900 px-2 py-4">
         {data.navegacion.map((group) => (
           <SidebarGroup key={group.title}>
-            <SidebarGroupLabel className="px-3 mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+            <SidebarGroupLabel className="px-3 mb-2 text-xs font-bold u .ppercase tracking-wider text-slate-400">
               {group.title}
             </SidebarGroupLabel>
             <SidebarMenu className="gap-1">
