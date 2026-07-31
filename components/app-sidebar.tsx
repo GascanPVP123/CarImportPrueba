@@ -9,6 +9,7 @@ import {
   BarChart3,
   LogOut,
   Truck,
+  Wallet,
 } from "lucide-react";
 
 import Link from "next/link";
@@ -51,6 +52,12 @@ const data = {
       items: [
         { title: "Consignaciones", url: "/dashboard/consignaciones", icon: Truck },
         { title: "Productos", url: "/dashboard/productos", icon: Package },
+      ],
+    },
+    {
+      title: "Finanzas",
+      items: [
+        { title: "Cuentas Corrientes", url: "/dashboard/cuentas-corrientes", icon: Wallet },
       ],
     },
     {

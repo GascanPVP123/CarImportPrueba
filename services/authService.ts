@@ -1,21 +1,32 @@
 import { apiRequest } from "./api";
 
-interface AuthResponse {
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
   token: string;
   username: string;
   rol: string;
 }
 
 export const authService = {
-  login: (username: string, password: string) =>
+  login: (data: { username: string; password: string }) =>
     apiRequest<AuthResponse>("/auth/login", {
       method: "POST",
-      body: { username, password },
+      body: data,
     }),
 
-  register: (username: string, password: string, email?: string) =>
+  register: (data: { username: string; email: string; password: string }) =>
     apiRequest<AuthResponse>("/auth/register", {
       method: "POST",
-      body: { username, password, email },
+      body: data,
     }),
 };

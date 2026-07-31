@@ -1,8 +1,10 @@
 "use client";
+
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { authService } from "@/services/authService";
 import { useRouter } from "next/navigation";
+import NextLink from "next/link";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -17,7 +19,7 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await authService.login(username, password);
+      const res = await authService.login({ username, password });
       login(res.token, { username: res.username, rol: res.rol });
       router.push("/dashboard");
     } catch (err: unknown) {
@@ -28,7 +30,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
       <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-sm border border-slate-200">
         <h1 className="text-2xl font-bold text-center text-slate-900 mb-6">
           CarImport System
@@ -40,9 +42,7 @@ export default function LoginPage() {
         )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">
-              Usuario
-            </label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Usuario</label>
             <input
               type="text"
               className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -53,9 +53,7 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">
-              Contraseña
-            </label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Contraseña</label>
             <input
               type="password"
               className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -73,6 +71,14 @@ export default function LoginPage() {
             {loading ? "Ingresando..." : "Iniciar Sesión"}
           </button>
         </form>
+      </div>
+      <div className="mt-6 text-center">
+        <p className="text-xs text-gray-500">
+          ¿No tienes una cuenta?{" "}
+          <NextLink href="/register" className="text-emerald-600 hover:text-emerald-700 font-semibold">
+            Regístrate
+          </NextLink>
+        </p>
       </div>
     </div>
   );

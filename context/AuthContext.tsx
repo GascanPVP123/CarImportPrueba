@@ -1,86 +1,67 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
-interface AuthUser {
+interface User {
   username: string;
   rol: string;
 }
 
 interface AuthContextType {
-  user: AuthUser | null;
-  token: string | null;
-  login: (token: string, user: AuthUser) => void;
+  isAuthenticated: boolean;
+  user: User | null;
+  login: (token: string, user: User) => void;
   logout: () => void;
-  isLoading: boolean;
 }
 
-// 1. Estado inicial por defecto por si se invoca antes de tiempo
-const defaultContextValue: AuthContextType = {
+const AuthContext = createContext<AuthContextType>({
+  isAuthenticated: false,
   user: null,
-  token: null,
   login: () => {},
   logout: () => {},
-  isLoading: true,
+});
+
+// Leer valores iniciales del localStorage (solo se ejecuta una vez al montar)
+const getInitialAuth = () => {
+  if (typeof window === "undefined") return { isAuthenticated: false, user: null };
+  
+  const token = localStorage.getItem("token");
+  const userData = localStorage.getItem("user");
+
+  if (token && userData) {
+    try {
+      return { isAuthenticated: true, user: JSON.parse(userData) as User };
+    } catch {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+    }
+  }
+  return { isAuthenticated: false, user: null };
 };
 
-const AuthContext = createContext<AuthContextType>(defaultContextValue);
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [auth, setAuth] = useState<{ token: string | null; user: AuthUser | null }>({
-    token: null,
-    user: null,
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const [auth, setAuth] = useState(getInitialAuth);
+  const router = useRouter();
 
-  useEffect(() => {
-    // Evitamos el warning del linter posponiendo la carga al microtask
-    queueMicrotask(() => {
-      try {
-        const token = localStorage.getItem("token");
-        const userStr = localStorage.getItem("user");
-        const user = userStr ? JSON.parse(userStr) : null;
-
-        if (token && user) {
-          setAuth({ token, user });
-        }
-      } catch (e) {
-        console.error("Error al cargar sesión de localStorage", e);
-      } finally {
-        setIsLoading(false);
-      }
-    });
-  }, []);
-
-  const login = (token: string, user: AuthUser) => {
+  const login = useCallback((token: string, user: User) => {
     localStorage.setItem("token", token);
     localStorage.setItem("user", JSON.stringify(user));
-    setAuth({ token, user });
-  };
+    setAuth({ isAuthenticated: true, user });
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    setAuth({ token: null, user: null });
-  };
+    setAuth({ isAuthenticated: false, user: null });
+    router.push("/login");
+  }, [router]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        user: auth.user,
-        token: auth.token,
-        login,
-        logout,
-        isLoading,
-      }}
-    >
+    <AuthContext.Provider value={{ ...auth, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// 2. Retornamos defaultContextValue en lugar de null si algo falla en la jerarquía
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  return context || defaultContextValue;
-};
+export const useAuth = () => useContext(AuthContext);

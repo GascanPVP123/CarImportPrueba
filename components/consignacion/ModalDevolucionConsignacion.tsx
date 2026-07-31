@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { X, Undo2, Package } from "lucide-react";
+import React, { useState, useCallback, useMemo } from "react";
+import { X, Undo2,} from "lucide-react";
 import { Consignacion, DevolucionConsignacionRequest } from "@/services/consignacionService";
 
 interface ModalDevolucionConsignacionProps {
@@ -11,12 +11,9 @@ interface ModalDevolucionConsignacionProps {
   onGuardar: (data: DevolucionConsignacionRequest) => Promise<void>;
 }
 
-interface DevolucionDetalleForm {
-  detalleConsignacionId: number;
-  productoNombre: string;
-  cantidadPendiente: number;
-  cantidadDevolver: number;
-}
+
+const calcularPendiente = (d: Consignacion["detalles"][0]) =>
+  d.cantidadPendiente ?? d.cantidadEnviada - d.cantidadVendida - d.cantidadDevuelta;
 
 export function ModalDevolucionConsignacion({
   isOpen,
@@ -25,34 +22,40 @@ export function ModalDevolucionConsignacion({
   onGuardar,
 }: ModalDevolucionConsignacionProps) {
   const [fechaDevolucion, setFechaDevolucion] = useState(
-    new Date().toISOString().split("T")[0]
+    () => new Date().toISOString().split("T")[0]
   );
   const [motivo, setMotivo] = useState("");
-  const [detalles, setDetalles] = useState<DevolucionDetalleForm[]>(() => {
-    return consignacion.detalles
-      .filter(
-        (d) =>
-          (d.cantidadPendiente ??
-            d.cantidadEnviada - d.cantidadVendida - d.cantidadDevuelta) >
-            0 && !d.devuelto
-      )
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const detalles = useMemo(() =>
+    consignacion.detalles
+      .filter((d) => calcularPendiente(d) > 0 && !d.devuelto)
       .map((d) => ({
         detalleConsignacionId: d.id!,
         productoNombre: `${d.producto?.codigoSku || ""} - ${d.producto?.nombre || ""}`,
-        cantidadPendiente:
-          d.cantidadPendiente ??
-          d.cantidadEnviada - d.cantidadVendida - d.cantidadDevuelta,
+        cantidadPendiente: calcularPendiente(d),
         cantidadDevolver: 0,
-      }));
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+      })),
+    [consignacion.detalles]
+  );
+
+  const [cantidades, setCantidades] = useState<Record<number, number>>({});
+
+  const handleCantidadChange = useCallback((id: number, value: number) => {
+    setCantidades((prev) => ({ ...prev, [id]: value }));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    const detallesDevolucion = detalles.filter((d) => d.cantidadDevolver > 0);
+    const detallesDevolucion = detalles
+      .filter((d) => (cantidades[d.detalleConsignacionId] || 0) > 0)
+      .map((d) => ({
+        detalleConsignacionId: d.detalleConsignacionId,
+        cantidad: cantidades[d.detalleConsignacionId] || 0,
+      }));
 
     if (detallesDevolucion.length === 0) {
       setError("Ingresa al menos una cantidad a devolver");
@@ -60,31 +63,23 @@ export function ModalDevolucionConsignacion({
     }
 
     for (const d of detallesDevolucion) {
-      if (d.cantidadDevolver > d.cantidadPendiente) {
-        setError(
-          `La cantidad de "${d.productoNombre}" excede el pendiente (${d.cantidadPendiente})`
-        );
+      const detalle = detalles.find((x) => x.detalleConsignacionId === d.detalleConsignacionId);
+      if (detalle && d.cantidad > detalle.cantidadPendiente) {
+        setError(`La cantidad de "${detalle.productoNombre}" excede el pendiente (${detalle.cantidadPendiente})`);
         return;
       }
     }
 
-    const data: DevolucionConsignacionRequest = {
-      fechaDevolucion,
-      motivo: motivo.trim() || undefined,
-      detalles: detallesDevolucion.map((d) => ({
-        detalleConsignacionId: d.detalleConsignacionId,
-        cantidad: d.cantidadDevolver,
-      })),
-    };
-
     try {
       setLoading(true);
-      await onGuardar(data);
+      await onGuardar({
+        fechaDevolucion,
+        motivo: motivo.trim() || undefined,
+        detalles: detallesDevolucion,
+      });
       onClose();
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Error al registrar devolución"
-      );
+      setError(err instanceof Error ? err.message : "Error al registrar devolución");
     } finally {
       setLoading(false);
     }
@@ -92,9 +87,15 @@ export function ModalDevolucionConsignacion({
 
   if (!isOpen) return null;
 
+  const totalDevolver = detalles.reduce(
+    (acc, d) => acc + (cantidades[d.detalleConsignacionId] || 0),
+    0
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-200">
+        {/* Cabecera */}
         <div className="flex items-center justify-between px-6 py-4 bg-amber-700 text-white sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <Undo2 className="h-5 w-5" />
@@ -112,9 +113,11 @@ export function ModalDevolucionConsignacion({
             </div>
           )}
 
+          {/* Info */}
           <div className="bg-slate-50 p-3 rounded-lg text-xs space-y-1">
             <p><span className="font-semibold">Consignación:</span> {consignacion.numeroConsignacion}</p>
             <p><span className="font-semibold">Tienda:</span> {consignacion.tienda?.nombre}</p>
+            <p><span className="font-semibold">Estado:</span> {consignacion.estado}</p>
           </div>
 
           <div>
@@ -138,8 +141,11 @@ export function ModalDevolucionConsignacion({
             />
           </div>
 
+          {/* Productos */}
           <div className="border-t pt-4">
-            <h4 className="text-sm font-bold text-slate-900 mb-3">Productos pendientes</h4>
+            <h4 className="text-sm font-bold text-slate-900 mb-3">
+              Productos pendientes ({detalles.length})
+            </h4>
 
             {detalles.length === 0 ? (
               <p className="text-xs text-gray-400 italic py-4 text-center">
@@ -147,24 +153,22 @@ export function ModalDevolucionConsignacion({
               </p>
             ) : (
               <div className="space-y-2">
-                {detalles.map((d, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                {detalles.map((d) => (
+                  <div key={d.detalleConsignacionId} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium truncate">{d.productoNombre}</p>
-                      <p className="text-xs text-gray-400">Pendiente: {d.cantidadPendiente} und.</p>
+                      <p className="text-xs text-gray-400">
+                        Pendiente: {d.cantidadPendiente} und.
+                      </p>
                     </div>
                     <input
                       type="number"
                       min="0"
                       max={d.cantidadPendiente}
-                      value={d.cantidadDevolver || ""}
-                      onChange={(e) => {
-                        setDetalles((prev) => {
-                          const nuevos = [...prev];
-                          nuevos[i] = { ...nuevos[i], cantidadDevolver: parseInt(e.target.value) || 0 };
-                          return nuevos;
-                        });
-                      }}
+                      value={cantidades[d.detalleConsignacionId] || ""}
+                      onChange={(e) =>
+                        handleCantidadChange(d.detalleConsignacionId, parseInt(e.target.value) || 0)
+                      }
                       className="w-24 p-2 text-xs border rounded text-center"
                       placeholder="0"
                     />
@@ -172,13 +176,29 @@ export function ModalDevolucionConsignacion({
                 ))}
               </div>
             )}
+
+            {totalDevolver > 0 && (
+              <p className="text-right text-xs font-bold text-amber-700 mt-2">
+                Total a devolver: {totalDevolver} und.
+              </p>
+            )}
           </div>
 
+          {/* Botones */}
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={onClose} disabled={loading} className="px-4 py-2 text-xs font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition disabled:opacity-50">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="px-4 py-2 text-xs font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
+            >
               Cancelar
             </button>
-            <button type="submit" disabled={loading} className="px-5 py-2 text-xs font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition shadow-sm disabled:bg-gray-300">
+            <button
+              type="submit"
+              disabled={loading || totalDevolver === 0}
+              className="px-5 py-2 text-xs font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition shadow-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
               {loading ? "Guardando..." : "Registrar Devolución"}
             </button>
           </div>
